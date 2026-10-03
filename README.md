@@ -10,8 +10,8 @@ used to investigate implications for portfolio tail risk.
 
 This is a research project, not a trading strategy.
 
-> **Status: work in progress.** Phases 1-4 are implemented (data, marginals, static
-> vine, rolling estimation). Dependence monitoring, change detection, portfolio risk,
+> **Status: work in progress.** Phases 1-5 are implemented (data, marginals, static
+> vine, rolling estimation, dependence monitoring). Change detection, portfolio risk,
 > the dashboard and the live simulation are still to come. See [Status](#status).
 
 ---
@@ -82,6 +82,25 @@ as it goes, so if you stop the script and start it again it **resumes** where it
 off. Results end up in `data/results/w<window>/` as `.parquet` files (see
 [Glossary](#6-glossary)).
 
+After a run finishes, compute the monitoring metrics:
+
+```bash
+python scripts/compute_metrics.py                   # reads data/results/w250/checkpoint.jsonl
+```
+
+This writes `dependence_metrics.parquet` (one row per date: average absolute Kendall tau
+`d_t`, Spearman/Pearson, model-implied lower/upper tail dependence, how much the vine
+structure changed since the previous fit, AIC/BIC, ...) plus `pairwise_*.parquet`
+tables with one column per asset pair.
+
+**Tail dependence in this project.** `lower_tail_q` is the probability that asset *j*
+is in its worst 5% of days given that asset *i* is, as implied by the fitted vine
+(`q` = `tail_level` in the config). It is a finite-level version of the textbook tail
+coefficient, so it is positive even for copulas with no asymptotic tail dependence; use
+it to compare dates, not as an absolute truth. It is estimated by simulating from each
+fitted vine with the same random numbers every time, so changes between dates come from
+the model, not from simulation noise.
+
 ---
 
 ## 3. Project structure
@@ -107,12 +126,13 @@ Quant_copula/
 │       ├── returns.py         Prices -> log returns -> model-ready return matrix.
 │       ├── marginals.py       Turns returns into uniform numbers in (0,1) via ranks.
 │       ├── copula.py          VineCopula: fits a vine and summarises it.
-│       ├── dependence.py      Pairwise Kendall tau, Spearman, Pearson.
+│       ├── dependence.py      Pairwise tau/Spearman/Pearson and the monitoring metrics.
 │       ├── rolling.py         RollingVineModel: the rolling-window machinery.
 │       └── visualization.py   Plots (prices, uniformity check, vine trees).
 │
 ├── scripts/
-│   └── run_rolling.py     Command-line entry point to run the rolling fit.
+│   ├── run_rolling.py     Command-line entry point to run the rolling fit.
+│   └── compute_metrics.py Turns a finished run into dependence_metrics.parquet.
 │
 ├── tests/                 Automated checks of the maths and the code (run with pytest).
 │
@@ -292,8 +312,8 @@ save_results(results, "data/results/run")
 | 2 | Marginals (rank transform) | done |
 | 3 | Static vine copula, structured results, tree plot | done |
 | 4 | Rolling estimation (checkpointed, parallel) | done |
-| 5 | Dependence monitoring metrics (average tau, changes, tail dependence) | next |
-| 6 | Structural change detection | planned |
+| 5 | Dependence monitoring metrics (average tau, changes, tail dependence) | done |
+| 6 | Structural change detection | next |
 | 7 | Portfolio risk (VaR, ES) | planned |
 | 8 | Synthetic validation | planned |
 | 9 | Streamlit dashboard | planned |
