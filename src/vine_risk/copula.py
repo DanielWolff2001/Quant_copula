@@ -9,11 +9,13 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import asdict, dataclass, field
+from itertools import combinations
 from typing import Any
 
 import numpy as np
 import pandas as pd
 import pyvinecopulib as pv
+from scipy import stats
 
 from vine_risk.dependence import pairwise_dependence
 
@@ -126,6 +128,12 @@ class VineCopula:
         truncation_level: truncate the vine after this tree (``None`` = full vine).
         tree_criterion: edge weight for the tree structure (default Kendall's tau).
         num_threads: threads used by the C++ fitter.
+        tail_simulations: number of Sobol points used to compute the model-implied
+            pairwise dependence in :meth:`summary` (0 disables it; use a power of 2).
+        tail_level: ``q`` of the finite-level tail coefficients, see
+            :meth:`implied_pairwise`.
+        seed: seed of the Sobol sequence. It is the same for every fit, so differences
+            between windows are not caused by simulation noise.
     """
 
     def __init__(
@@ -135,7 +143,15 @@ class VineCopula:
         truncation_level: int | None = None,
         tree_criterion: str = "tau",
         num_threads: int = 1,
+        tail_simulations: int = 2**14,
+        tail_level: float = 0.05,
+        seed: int = 0,
     ) -> None:
+        if not 0 < tail_level < 0.5:
+            raise ValueError("tail_level must be in (0, 0.5).")
+        if tail_simulations < 0:
+            raise ValueError("tail_simulations must be >= 0.")
+        self.tail_simulations, self.tail_level, self.seed = tail_simulations, tail_level, seed
         if selection_criterion not in {"aic", "bic", "loglik"}:
             raise ValueError(f"Unsupported selection_criterion: {selection_criterion!r}")
         if families is None:
@@ -200,11 +216,46 @@ class VineCopula:
             timestamp=str(idx[-1].date()) if is_dt else None,
             pair_copulas=pcs, order=[int(x) for x in model.order],
             truncation_level=int(model.trunc_lvl),
-            pairwise=pairwise_dependence(u, self._returns).to_dict("records"),
+            pairwise=self._pairwise_records(u),
             loglik=float(model.loglik(u.to_numpy())), aic=float(model.aic(u.to_numpy())),
             bic=float(model.bic(u.to_numpy())), n_params=float(model.npars),
             selection_criterion=self.selection_criterion,
         )
+
+    def _pairwise_records(self, u: pd.DataFrame) -> list[dict[str, Any]]:
+        emp = pairwise_dependence(u, self._returns)
+        if self.tail_simulations > 0:
+            imp = self.implied_pairwise(self.tail_simulations, self.tail_level, self.seed)
+            emp = emp.merge(imp, on=["asset_i", "asset_j"], how="left")
+        return emp.to_dict("records")
+
+    def implied_pairwise(self, n: int = 2**14, q: float = 0.05, seed: int = 0) -> pd.DataFrame:
+        """Unconditional pairwise dependence implied by the fitted vine.
+
+        Draws ``n`` Sobol points through the vine (inverse Rosenblatt transform) and
+        measures, for every asset pair ``(i, j)``:
+
+        * ``model_tau``: Kendall's tau of the simulated sample;
+        * ``lower_tail_q``: ``P(U_j < q | U_i < q) = C(q, q) / q``;
+        * ``upper_tail_q``: ``P(U_j > 1-q | U_i > 1-q)``.
+
+        These are tail coefficients at the finite level ``q`` (default 5%), not the
+        limit ``q -> 0``. They are positive even for the Gaussian copula and (unlike
+        the asymptotic coefficients) can be estimated reliably from a simulation.
+        Pair-copula tail parameters beyond tree 1 are *conditional*; these are not.
+        """
+        model, u = self._require_fitted()
+        s = model.inverse_rosenblatt(pv.utils.sobol(n, u.shape[1], [seed]))
+        rows = []
+        for i, j in combinations(range(u.shape[1]), 2):
+            a, b = s[:, i], s[:, j]
+            rows.append((
+                str(u.columns[i]), str(u.columns[j]),
+                float(stats.kendalltau(a, b).statistic),
+                float(np.mean((a < q) & (b < q)) / q),
+                float(np.mean((a > 1 - q) & (b > 1 - q)) / q),
+            ))
+        return pd.DataFrame(rows, columns=["asset_i", "asset_j", "model_tau", "lower_tail_q", "upper_tail_q"])
 
     def simulate(self, n: int, seed: int = 0) -> pd.DataFrame:
         """Draw ``n`` uniform samples from the fitted vine (reproducible via ``seed``)."""

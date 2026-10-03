@@ -14,6 +14,8 @@ rolling:
   truncation_level: 3        # null = full vine
   selection_criterion: bic   # aic | bic | loglik
   n_jobs: 4                  # worker processes for batch runs
+  tail_simulations: 16384    # simulated points for model-implied tail dependence
+  tail_level: 0.05           # q in lambda_L(q) = P(U2<q | U1<q)
 
 risk:
   confidence_level: 0.99

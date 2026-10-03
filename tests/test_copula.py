@@ -96,3 +96,38 @@ def test_restricted_family_set():
     u, _ = _clayton_gaussian(500)
     res = VineCopula(families=["indep", "gaussian"]).fit(u).summary()
     assert {p.family for p in res.pair_copulas} <= {"independence", "gaussian"}
+
+
+def test_implied_pairwise_recovers_known_dependence(fitted):
+    v, _, _ = fitted
+    imp = v.implied_pairwise(2**14, 0.05, seed=0).set_index(["asset_i", "asset_j"])
+    ab = imp.loc[("A", "B")]
+    assert ab.model_tau == pytest.approx(0.5, abs=0.04)
+    # Clayton(theta=2): lambda_L(q) = C(q,q)/q with C(q,q) = (2 q^-2 - 1)^(-1/2)
+    q = 0.05
+    exact_lower = (2 * q ** -2 - 1) ** (-0.5) / q
+    assert ab.lower_tail_q == pytest.approx(exact_lower, abs=0.03)
+    assert ab.lower_tail_q > 2 * ab.upper_tail_q  # Clayton: lower-tail dependent only
+    assert list(imp.columns) == ["model_tau", "lower_tail_q", "upper_tail_q"]
+
+
+def test_implied_pairwise_is_deterministic_and_in_summary(fitted):
+    v, res, _ = fitted
+    pd.testing.assert_frame_equal(v.implied_pairwise(2**12, seed=3), v.implied_pairwise(2**12, seed=3))
+    row = res.pairwise_frame().set_index(["asset_i", "asset_j"]).loc[("A", "B")]
+    assert {"tau", "model_tau", "lower_tail_q", "upper_tail_q"} <= set(row.index)
+
+
+def test_gaussian_vine_has_symmetric_tails():
+    u, _ = _clayton_gaussian(1000)
+    v = VineCopula(families=["indep", "gaussian"], tail_simulations=2**15).fit(u)
+    imp = v.summary().pairwise_frame()
+    assert (imp["lower_tail_q"] - imp["upper_tail_q"]).abs().max() < 0.03
+
+
+def test_tail_simulations_can_be_disabled():
+    u, _ = _clayton_gaussian(300)
+    res = VineCopula(tail_simulations=0).fit(u).summary()
+    assert "model_tau" not in res.pairwise_frame().columns
+    with pytest.raises(ValueError):
+        VineCopula(tail_level=0.7)

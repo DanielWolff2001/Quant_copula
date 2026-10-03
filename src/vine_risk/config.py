@@ -28,6 +28,8 @@ class RollingConfig:
     truncation_level: int | None = 3  # None = full vine
     selection_criterion: str = "bic"
     n_jobs: int = 1  # worker processes used by RollingVineModel.run
+    tail_simulations: int = 16384  # Sobol points for model-implied pairwise dependence
+    tail_level: float = 0.05  # q of the finite-level tail coefficients
 
     def __post_init__(self) -> None:
         if self.window < 2:

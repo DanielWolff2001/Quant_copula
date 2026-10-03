@@ -120,4 +120,5 @@ def test_frames_and_parquet(returns, tmp_path):
 def test_from_config_uses_truncation_three():
     m = RollingVineModel.from_config(load_config("configs/default.yaml"))
     assert m.window == 250 and m.refit_frequency == 1
-    assert m.vine_kwargs == {"selection_criterion": "bic", "truncation_level": 3}
+    assert m.vine_kwargs == {"selection_criterion": "bic", "truncation_level": 3,
+                             "tail_simulations": 16384, "tail_level": 0.05, "seed": 42}

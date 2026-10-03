@@ -94,7 +94,9 @@ class RollingVineModel:
         return cls(
             window=r.window, refit_frequency=r.refit_frequency,
             vine_kwargs=dict(selection_criterion=r.selection_criterion,
-                             truncation_level=r.truncation_level),
+                             truncation_level=r.truncation_level,
+                             tail_simulations=r.tail_simulations, tail_level=r.tail_level,
+                             seed=cfg.risk.seed),
         )
 
     # ---- data update -------------------------------------------------------
@@ -195,6 +197,11 @@ class RollingVineModel:
             if i % 100 == 0 or i == total:
                 logger.info("Fitted %d/%d windows", i, total)
         return out
+
+
+def load_results(path: str | Path) -> list[VineFitResult]:
+    """Load results from a checkpoint (JSON-lines) file, sorted by timestamp."""
+    return [r for _, r in sorted(_read_checkpoint(path).items())]
 
 
 def _read_checkpoint(path: str | Path) -> dict[str, VineFitResult]:
