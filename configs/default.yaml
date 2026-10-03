@@ -11,6 +11,9 @@ data:
 rolling:
   window: 250
   refit_frequency: 1
+  truncation_level: 3        # null = full vine
+  selection_criterion: bic   # aic | bic | loglik
+  n_jobs: 4                  # worker processes for batch runs
 
 risk:
   confidence_level: 0.99

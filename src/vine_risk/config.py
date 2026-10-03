@@ -25,6 +25,17 @@ class DataConfig:
 class RollingConfig:
     window: int = 250
     refit_frequency: int = 1
+    truncation_level: int | None = 3  # None = full vine
+    selection_criterion: str = "bic"
+    n_jobs: int = 1  # worker processes used by RollingVineModel.run
+
+    def __post_init__(self) -> None:
+        if self.window < 2:
+            raise ValueError("rolling.window must be >= 2")
+        if self.refit_frequency < 1:
+            raise ValueError("rolling.refit_frequency must be >= 1")
+        if self.n_jobs < 1:
+            raise ValueError("rolling.n_jobs must be >= 1")
 
 
 @dataclass(frozen=True)
