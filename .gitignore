@@ -7,3 +7,5 @@ __pycache__/
 data/cache/
 *.parquet
 !tests/**/*.parquet
+data/results/
+data/*.log

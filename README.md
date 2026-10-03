@@ -10,9 +10,10 @@ used to investigate implications for portfolio tail risk.
 
 This is a research project, not a trading strategy.
 
-> **Status: work in progress.** Phases 1-5 are implemented (data, marginals, static
-> vine, rolling estimation, dependence monitoring). Change detection, portfolio risk,
-> the dashboard and the live simulation are still to come. See [Status](#status).
+> **Status: work in progress.** Phases 1-6 are implemented (data, marginals, static
+> vine, rolling estimation, dependence monitoring, structural change detection). Portfolio risk, portfolio risk,
+> the dashboard and the live simulation are still to come (the full synthetic validation study
+> of Phase 8 is only partly done: see section 6). See [Status](#status).
 
 ---
 
@@ -80,7 +81,7 @@ The first run downloads prices from Yahoo Finance and caches them in `data/cache
 Fitting about 5,000 windows takes roughly an hour on 4 CPU cores. Progress is saved
 as it goes, so if you stop the script and start it again it **resumes** where it left
 off. Results end up in `data/results/w<window>/` as `.parquet` files (see
-[Glossary](#6-glossary)).
+[Glossary](#7-glossary)).
 
 After a run finishes, compute the monitoring metrics:
 
@@ -128,11 +129,14 @@ Quant_copula/
 │       ├── copula.py          VineCopula: fits a vine and summarises it.
 │       ├── dependence.py      Pairwise tau/Spearman/Pearson and the monitoring metrics.
 │       ├── rolling.py         RollingVineModel: the rolling-window machinery.
+│       ├── change_detection.py Structural change scores and the calibrated permutation test.
+│       ├── synthetic.py       Simulated data with known dependence regimes (for validation).
 │       └── visualization.py   Plots (prices, uniformity check, vine trees).
 │
 ├── scripts/
 │   ├── run_rolling.py     Command-line entry point to run the rolling fit.
-│   └── compute_metrics.py Turns a finished run into dependence_metrics.parquet.
+│   ├── compute_metrics.py Turns a finished run into dependence_metrics.parquet.
+│   └── detect_changes.py  Structural change scores and permutation-test scan.
 │
 ├── tests/                 Automated checks of the maths and the code (run with pytest).
 │
@@ -147,8 +151,7 @@ Quant_copula/
     └── dashboard/         Streamlit dashboard (planned).
 ```
 
-Planned modules that do not exist yet: `change_detection.py` (structural change
-scores), `portfolio.py` (VaR / Expected Shortfall) and `diagnostics.py`.
+Planned modules that do not exist yet: `portfolio.py` (VaR / Expected Shortfall) and `diagnostics.py`.
 
 ### Why is the code in `src/vine_risk/` and not next to the scripts?
 
@@ -285,7 +288,55 @@ save_results(results, "data/results/run")
 
 ---
 
-## 6. Glossary
+## 6. Detecting structural change
+
+A fitted vine always moves a little from day to day, mostly because of estimation
+noise. The project therefore asks a statistical question: *is the dependence in the
+latest window different from the dependence in the window before it by more than noise
+alone would explain?*
+
+```bash
+python scripts/detect_changes.py        # after run_rolling.py; writes two parquet files
+```
+
+- `structural_change_scores.parquet`: for every date, `structural_change_score` (the
+  Frobenius distance between the Kendall-tau matrix now and one window ago, the "S_t"
+  of the project brief) plus a model-based distance and some diagnostics.
+- `change_scan.parquet`: every 5th day, a **permutation test** comparing the latest
+  window with the one before it. Observations (in blocks of 10 days) are randomly
+  shuffled between the two windows many times to learn how large the difference looks
+  when nothing has changed. Statistics: the whole tau matrix, and the lower and upper
+  tail dependence, each as a "any pair changed" and an "average over pairs" version. The
+  file also has effect sizes (`stat_*` relative to `null_mean_*`) and Benjamini-Hochberg
+  corrected flags, because many dates are tested.
+
+What we learned from simulated data with a known answer (`tests/`, `synthetic.py`):
+
+| Finding | Evidence |
+|---------|----------|
+| Comparing a window with the *previous day's* window cannot detect a regime change | One-step distances were as small before the change (0.06) as after it (0.07); the distance to the window one year earlier jumped from about 0.36 to 1.4. |
+| z-scores and CUSUM of rolling estimates are not calibrated | Neighbouring windows share almost all their data, so estimates are strongly autocorrelated; a z > 3 threshold fired on data with constant dependence. They are kept as diagnostics only. |
+| The permutation test is calibrated | About 1-2% of dates are flagged at the 1% level when nothing changed, and about 80% of dates are flagged in the stretch where the two windows straddle a real jump in correlation. |
+| Tail dependence must be measured with ranks *inside* each window | With pooled ranks a volatile period creates extra joint extremes, and about 30% of dates were falsely flagged on data with constant dependence but changing volatility. |
+| A moderate change that only affects the tails (Gaussian to Student-t with 3 degrees of freedom, same Kendall tau) is **not** detectable with 250 or 500 daily observations | Each window holds only about 25 tail observations per asset; the gap in tail dependence (0.33 vs 0.40 at the 10% level) is about the size of the sampling noise. |
+
+On the real 8-asset data (window 250, 2006-2026), with the calibrated test:
+
+- The Kendall-tau matrix differs significantly from the year before on about 39% of
+  scan dates (30% after multiple-testing correction). Dependence is clearly not
+  constant, but effect sizes are modest: typically 1.6 times the no-change noise level,
+  at most 3.4.
+- Much of this is the whole market becoming more or less correlated together (the tau
+  distance correlates 0.86 with the change in average dependence).
+- Tail-dependence changes are rarely significant (3-10% of dates raw, none after
+  correction). This is not evidence that the tails do not change: the test has little
+  power for them (see above).
+- None of this establishes *why* dependence changed. These are associations with
+  periods in the calendar, not causal statements.
+
+---
+
+## 7. Glossary
 
 | Term | Meaning |
 |------|---------|
@@ -298,13 +349,15 @@ save_results(results, "data/results/run")
 | AIC / BIC | Scores that balance how well a model fits against how complex it is; lower is better. |
 | Truncation level | Fit only the first *k* trees of the vine; deeper trees are usually small and noisy. |
 | VaR / ES | Value at Risk and Expected Shortfall: standard measures of portfolio tail loss. |
+| Permutation test | Shuffle observations between two windows many times to see how big a difference looks by chance alone. |
+| Multiple testing / FDR | Testing many dates yields some "significant" results by luck; Benjamini-Hochberg limits the expected share of false discoveries. |
 | Parquet | A compact file format for tables; read with `pandas.read_parquet`. |
 | Virtual environment | A private folder of installed packages for one project (`.venv`). |
 | Editable install | `pip install -e`: makes the package importable while still using your live source files. |
 
 ---
 
-## 7. Status
+## 8. Status
 
 | Phase | Content | State |
 |------|---------|-------|
@@ -313,13 +366,13 @@ save_results(results, "data/results/run")
 | 3 | Static vine copula, structured results, tree plot | done |
 | 4 | Rolling estimation (checkpointed, parallel) | done |
 | 5 | Dependence monitoring metrics (average tau, changes, tail dependence) | done |
-| 6 | Structural change detection | next |
-| 7 | Portfolio risk (VaR, ES) | planned |
-| 8 | Synthetic validation | planned |
+| 6 | Structural change detection | done |
+| 7 | Portfolio risk (VaR, ES) | next |
+| 8 | Synthetic validation | partly (generator and detector checks done; full study planned) |
 | 9 | Streamlit dashboard | planned |
 | 10 | Live (replay) simulation | planned |
 
-## 8. Limitations (to be extended)
+## 9. Limitations (to be extended)
 
 - A rolling window describes *local* history; financial dependence is not stationary.
 - Different vine structures can have nearly identical likelihoods, so structure changes
@@ -329,4 +382,11 @@ save_results(results, "data/results/run")
   *conditional* on other assets; they are not the plain pairwise values.
 - A detected statistical change is not automatically an economic regime change, and
   associations found here are not causal claims.
+- The permutation test treats blocks of 10 days as exchangeable; longer-lasting serial
+  dependence still makes it somewhat too liberal, and it only says that two windows
+  differ, not when inside them the change happened.
+- Tail-dependence changes of realistic size are hard to detect with one or two years of
+  daily data; a non-significant tail test is weak evidence of "no change".
+- Moving-window comparisons at neighbouring dates are not independent tests, so the
+  multiple-testing correction is approximate.
 - Daily data only; no intraday dynamics.
