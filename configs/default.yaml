@@ -1,0 +1,18 @@
+assets: [AAPL, MSFT, NVDA, JPM, XOM, JNJ, SPY, TLT]
+
+data:
+  frequency: daily
+  start: "2005-01-01"
+  end: null            # null = today
+  cache_dir: data/cache
+  max_missing_frac: 0.05   # drop tickers with more missing prices than this
+  max_ffill_days: 3        # forward-fill gaps up to this length
+
+rolling:
+  window: 250
+  refit_frequency: 1
+
+risk:
+  confidence_level: 0.99
+  simulations: 10000
+  seed: 42
