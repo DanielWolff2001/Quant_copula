@@ -18,6 +18,7 @@ dependencies = [
     "pyyaml",
     "yfinance",
     "pyvinecopulib",
+    "networkx",
 ]
 
 [project.optional-dependencies]

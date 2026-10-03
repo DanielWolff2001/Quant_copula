@@ -1,0 +1,897 @@
+{
+ "assets": [
+  "AAPL",
+  "MSFT",
+  "NVDA",
+  "JPM",
+  "XOM",
+  "JNJ",
+  "SPY",
+  "TLT"
+ ],
+ "n_obs": 1000,
+ "n_assets": 8,
+ "window_start": "2022-10-07",
+ "window_end": "2026-10-02",
+ "timestamp": "2026-10-02",
+ "pair_copulas": [
+  {
+   "tree": 1,
+   "edge": 1,
+   "conditioned": [
+    "TLT",
+    "JNJ"
+   ],
+   "conditioning": [],
+   "family": "frank",
+   "rotation": 0,
+   "parameters": [
+    1.0165334713838423
+   ],
+   "tau": 0.11180113216471455,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0,
+   "n_params": 1.0,
+   "loglik": 14.52018390720215,
+   "aic": -27.0403678144043,
+   "bic": -22.13261253542216
+  },
+  {
+   "tree": 1,
+   "edge": 2,
+   "conditioned": [
+    "AAPL",
+    "SPY"
+   ],
+   "conditioning": [],
+   "family": "student",
+   "rotation": 0,
+   "parameters": [
+    0.6219114333943561,
+    4.6096301147215195
+   ],
+   "tau": 0.42728724685066666,
+   "lower_tail": 0.29925717661480644,
+   "upper_tail": 0.29925717661480644,
+   "n_params": 2.0,
+   "loglik": 260.872733998665,
+   "aic": -517.74546799733,
+   "bic": -507.92995743936575
+  },
+  {
+   "tree": 1,
+   "edge": 3,
+   "conditioned": [
+    "JNJ",
+    "NVDA"
+   ],
+   "conditioning": [],
+   "family": "student",
+   "rotation": 0,
+   "parameters": [
+    -0.18055929903844947,
+    6.97554795416338
+   ],
+   "tau": -0.11558154532024373,
+   "lower_tail": 0.009546820899700359,
+   "upper_tail": 0.009546820899700359,
+   "n_params": 2.0,
+   "loglik": 24.991678083335955,
+   "aic": -45.98335616667191,
+   "bic": -36.16784560870764
+  },
+  {
+   "tree": 1,
+   "edge": 4,
+   "conditioned": [
+    "NVDA",
+    "SPY"
+   ],
+   "conditioning": [],
+   "family": "gaussian",
+   "rotation": 0,
+   "parameters": [
+    0.6802521410054498
+   ],
+   "tau": 0.47625943748999416,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0,
+   "n_params": 1.0,
+   "loglik": 306.8536747638238,
+   "aic": -611.7073495276476,
+   "bic": -606.7995942486655
+  },
+  {
+   "tree": 1,
+   "edge": 5,
+   "conditioned": [
+    "MSFT",
+    "SPY"
+   ],
+   "conditioning": [],
+   "family": "student",
+   "rotation": 0,
+   "parameters": [
+    0.6719782730929387,
+    4.485647831855226
+   ],
+   "tau": 0.46911036762404856,
+   "lower_tail": 0.34309369898920167,
+   "upper_tail": 0.34309369898920167,
+   "n_params": 2.0,
+   "loglik": 307.5904186716981,
+   "aic": -611.1808373433962,
+   "bic": -601.365326785432
+  },
+  {
+   "tree": 1,
+   "edge": 6,
+   "conditioned": [
+    "SPY",
+    "JPM"
+   ],
+   "conditioning": [],
+   "family": "bb7",
+   "rotation": 0,
+   "parameters": [
+    1.4676694202459732,
+    0.6583350704536199
+   ],
+   "tau": 0.3659814757608466,
+   "lower_tail": 0.34893172193930083,
+   "upper_tail": 0.3963577372607867,
+   "n_params": 2.0,
+   "loglik": 201.76363050713968,
+   "aic": -399.52726101427936,
+   "bic": -389.7117504563151
+  },
+  {
+   "tree": 1,
+   "edge": 7,
+   "conditioned": [
+    "XOM",
+    "JPM"
+   ],
+   "conditioning": [],
+   "family": "student",
+   "rotation": 0,
+   "parameters": [
+    0.23731836983531185,
+    5.651455794659765
+   ],
+   "tau": 0.15253691385649087,
+   "lower_tail": 0.0846647585575528,
+   "upper_tail": 0.0846647585575528,
+   "n_params": 2.0,
+   "loglik": 42.04101388639283,
+   "aic": -80.08202777278566,
+   "bic": -70.26651721482139
+  },
+  {
+   "tree": 2,
+   "edge": 1,
+   "conditioned": [
+    "TLT",
+    "NVDA"
+   ],
+   "conditioning": [
+    "JNJ"
+   ],
+   "family": "gumbel",
+   "rotation": 0,
+   "parameters": [
+    1.0527262481275428
+   ],
+   "tau": 0.050085431251786126,
+   "lower_tail": 0.0,
+   "upper_tail": 0.06824173736777506,
+   "n_params": 1.0,
+   "loglik": 4.967528652161583,
+   "aic": -7.935057304323166,
+   "bic": -3.0273020253410294
+  },
+  {
+   "tree": 2,
+   "edge": 2,
+   "conditioned": [
+    "AAPL",
+    "JPM"
+   ],
+   "conditioning": [
+    "SPY"
+   ],
+   "family": "frank",
+   "rotation": 0,
+   "parameters": [
+    -0.9349425430132001
+   ],
+   "tau": -0.10298772329038419,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0,
+   "n_params": 1.0,
+   "loglik": 10.611596805674813,
+   "aic": -19.223193611349625,
+   "bic": -14.315438332367489
+  },
+  {
+   "tree": 2,
+   "edge": 3,
+   "conditioned": [
+    "JNJ",
+    "SPY"
+   ],
+   "conditioning": [
+    "NVDA"
+   ],
+   "family": "frank",
+   "rotation": 0,
+   "parameters": [
+    1.8278395605864046
+   ],
+   "tau": 0.19667005141815874,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0,
+   "n_params": 1.0,
+   "loglik": 44.06251087151529,
+   "aic": -86.12502174303059,
+   "bic": -81.21726646404845
+  },
+  {
+   "tree": 2,
+   "edge": 4,
+   "conditioned": [
+    "NVDA",
+    "JPM"
+   ],
+   "conditioning": [
+    "SPY"
+   ],
+   "family": "frank",
+   "rotation": 0,
+   "parameters": [
+    -1.267695329530783
+   ],
+   "tau": -0.1386514189170982,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0,
+   "n_params": 1.0,
+   "loglik": 20.137584235719558,
+   "aic": -38.275168471439116,
+   "bic": -33.36741319245698
+  },
+  {
+   "tree": 2,
+   "edge": 5,
+   "conditioned": [
+    "MSFT",
+    "JPM"
+   ],
+   "conditioning": [
+    "SPY"
+   ],
+   "family": "frank",
+   "rotation": 0,
+   "parameters": [
+    -1.5614200293384313
+   ],
+   "tau": -0.16942880809932626,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0,
+   "n_params": 1.0,
+   "loglik": 28.352810757116522,
+   "aic": -54.705621514233044,
+   "bic": -49.79786623525091
+  },
+  {
+   "tree": 2,
+   "edge": 6,
+   "conditioned": [
+    "SPY",
+    "XOM"
+   ],
+   "conditioning": [
+    "JPM"
+   ],
+   "family": "independence",
+   "rotation": 0,
+   "parameters": [],
+   "tau": 0.0,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0,
+   "n_params": 0.0,
+   "loglik": 0.0,
+   "aic": 0.0,
+   "bic": 0.0
+  },
+  {
+   "tree": 3,
+   "edge": 1,
+   "conditioned": [
+    "TLT",
+    "SPY"
+   ],
+   "conditioning": [
+    "NVDA",
+    "JNJ"
+   ],
+   "family": "student",
+   "rotation": 0,
+   "parameters": [
+    0.1430129954985453,
+    5.510236620996126
+   ],
+   "tau": 0.09135814490105856,
+   "lower_tail": 0.06571780840058564,
+   "upper_tail": 0.06571780840058564,
+   "n_params": 2.0,
+   "loglik": 18.879062948219694,
+   "aic": -33.75812589643939,
+   "bic": -23.942615338475115
+  },
+  {
+   "tree": 3,
+   "edge": 2,
+   "conditioned": [
+    "AAPL",
+    "NVDA"
+   ],
+   "conditioning": [
+    "JPM",
+    "SPY"
+   ],
+   "family": "gaussian",
+   "rotation": 0,
+   "parameters": [
+    -0.13272806625248235
+   ],
+   "tau": -0.08474739349769375,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0,
+   "n_params": 1.0,
+   "loglik": 8.861567489558345,
+   "aic": -15.72313497911669,
+   "bic": -10.815379700134553
+  },
+  {
+   "tree": 3,
+   "edge": 3,
+   "conditioned": [
+    "JNJ",
+    "JPM"
+   ],
+   "conditioning": [
+    "NVDA",
+    "SPY"
+   ],
+   "family": "independence",
+   "rotation": 0,
+   "parameters": [],
+   "tau": 0.0,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0,
+   "n_params": 0.0,
+   "loglik": 0.0,
+   "aic": 0.0,
+   "bic": 0.0
+  },
+  {
+   "tree": 3,
+   "edge": 4,
+   "conditioned": [
+    "NVDA",
+    "XOM"
+   ],
+   "conditioning": [
+    "JPM",
+    "SPY"
+   ],
+   "family": "frank",
+   "rotation": 0,
+   "parameters": [
+    -0.8894452676400566
+   ],
+   "tau": -0.09805577667057941,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0,
+   "n_params": 1.0,
+   "loglik": 10.332477342705364,
+   "aic": -18.664954685410727,
+   "bic": -13.75719940642859
+  },
+  {
+   "tree": 3,
+   "edge": 5,
+   "conditioned": [
+    "MSFT",
+    "XOM"
+   ],
+   "conditioning": [
+    "JPM",
+    "SPY"
+   ],
+   "family": "frank",
+   "rotation": 0,
+   "parameters": [
+    -1.1113876075083633
+   ],
+   "tau": -0.12199350663808817,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0,
+   "n_params": 1.0,
+   "loglik": 15.211150695397619,
+   "aic": -28.422301390795237,
+   "bic": -23.5145461118131
+  },
+  {
+   "tree": 4,
+   "edge": 1,
+   "conditioned": [
+    "TLT",
+    "JPM"
+   ],
+   "conditioning": [
+    "NVDA",
+    "JNJ",
+    "SPY"
+   ],
+   "family": "gumbel",
+   "rotation": 90,
+   "parameters": [
+    1.0913462883032379
+   ],
+   "tau": -0.08370055341944471,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0,
+   "n_params": 1.0,
+   "loglik": 14.223396026753061,
+   "aic": -26.446792053506122,
+   "bic": -21.539036774523986
+  },
+  {
+   "tree": 4,
+   "edge": 2,
+   "conditioned": [
+    "AAPL",
+    "JNJ"
+   ],
+   "conditioning": [
+    "NVDA",
+    "JPM",
+    "SPY"
+   ],
+   "family": "independence",
+   "rotation": 0,
+   "parameters": [],
+   "tau": 0.0,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0,
+   "n_params": 0.0,
+   "loglik": 0.0,
+   "aic": 0.0,
+   "bic": 0.0
+  },
+  {
+   "tree": 4,
+   "edge": 3,
+   "conditioned": [
+    "JNJ",
+    "XOM"
+   ],
+   "conditioning": [
+    "NVDA",
+    "JPM",
+    "SPY"
+   ],
+   "family": "gumbel",
+   "rotation": 0,
+   "parameters": [
+    1.0537349395359348
+   ],
+   "tau": 0.05099474025185087,
+   "lower_tail": 0.0,
+   "upper_tail": 0.06945891194200038,
+   "n_params": 1.0,
+   "loglik": 4.849994648874441,
+   "aic": -7.699989297748882,
+   "bic": -2.792234018766745
+  },
+  {
+   "tree": 4,
+   "edge": 4,
+   "conditioned": [
+    "NVDA",
+    "MSFT"
+   ],
+   "conditioning": [
+    "JPM",
+    "XOM",
+    "SPY"
+   ],
+   "family": "gumbel",
+   "rotation": 180,
+   "parameters": [
+    1.0442928129555484
+   ],
+   "tau": 0.04241417005465287,
+   "lower_tail": 0.057942616350425746,
+   "upper_tail": 0.0,
+   "n_params": 1.0,
+   "loglik": 5.138772016147083,
+   "aic": -8.277544032294166,
+   "bic": -3.3697887533120294
+  },
+  {
+   "tree": 5,
+   "edge": 1,
+   "conditioned": [
+    "TLT",
+    "XOM"
+   ],
+   "conditioning": [
+    "NVDA",
+    "JPM",
+    "JNJ",
+    "SPY"
+   ],
+   "family": "frank",
+   "rotation": 0,
+   "parameters": [
+    -0.9187645482205506
+   ],
+   "tau": -0.10123539318377839,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0,
+   "n_params": 1.0,
+   "loglik": 11.513754161782757,
+   "aic": -21.027508323565513,
+   "bic": -16.119753044583376
+  },
+  {
+   "tree": 5,
+   "edge": 2,
+   "conditioned": [
+    "AAPL",
+    "XOM"
+   ],
+   "conditioning": [
+    "NVDA",
+    "JPM",
+    "JNJ",
+    "SPY"
+   ],
+   "family": "independence",
+   "rotation": 0,
+   "parameters": [],
+   "tau": 0.0,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0,
+   "n_params": 0.0,
+   "loglik": 0.0,
+   "aic": 0.0,
+   "bic": 0.0
+  },
+  {
+   "tree": 5,
+   "edge": 3,
+   "conditioned": [
+    "JNJ",
+    "MSFT"
+   ],
+   "conditioning": [
+    "NVDA",
+    "JPM",
+    "XOM",
+    "SPY"
+   ],
+   "family": "student",
+   "rotation": 0,
+   "parameters": [
+    -0.11742351205336343,
+    10.04534804265025
+   ],
+   "tau": -0.07492699273863129,
+   "lower_tail": 0.0032458493400209123,
+   "upper_tail": 0.0032458493400209123,
+   "n_params": 2.0,
+   "loglik": 14.923645521598125,
+   "aic": -25.84729104319625,
+   "bic": -16.031780485231977
+  },
+  {
+   "tree": 6,
+   "edge": 1,
+   "conditioned": [
+    "TLT",
+    "MSFT"
+   ],
+   "conditioning": [
+    "NVDA",
+    "JPM",
+    "XOM",
+    "JNJ",
+    "SPY"
+   ],
+   "family": "gaussian",
+   "rotation": 0,
+   "parameters": [
+    -0.1206635641017802
+   ],
+   "tau": -0.0770044475994145,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0,
+   "n_params": 1.0,
+   "loglik": 7.452225887018997,
+   "aic": -12.904451774037994,
+   "bic": -7.996696495055858
+  },
+  {
+   "tree": 6,
+   "edge": 2,
+   "conditioned": [
+    "AAPL",
+    "MSFT"
+   ],
+   "conditioning": [
+    "NVDA",
+    "JPM",
+    "XOM",
+    "JNJ",
+    "SPY"
+   ],
+   "family": "joe",
+   "rotation": 0,
+   "parameters": [
+    1.0789139088026165
+   ],
+   "tau": 0.04349058456772359,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0988689141453929,
+   "n_params": 1.0,
+   "loglik": 7.049215297589846,
+   "aic": -12.098430595179693,
+   "bic": -7.190675316197556
+  },
+  {
+   "tree": 7,
+   "edge": 1,
+   "conditioned": [
+    "TLT",
+    "AAPL"
+   ],
+   "conditioning": [
+    "MSFT",
+    "NVDA",
+    "JPM",
+    "XOM",
+    "JNJ",
+    "SPY"
+   ],
+   "family": "independence",
+   "rotation": 0,
+   "parameters": [],
+   "tau": 0.0,
+   "lower_tail": 0.0,
+   "upper_tail": 0.0,
+   "n_params": 0.0,
+   "loglik": 0.0,
+   "aic": 0.0,
+   "bic": 0.0
+  }
+ ],
+ "order": [
+  8,
+  1,
+  6,
+  3,
+  2,
+  7,
+  5,
+  4
+ ],
+ "truncation_level": 7,
+ "pairwise": [
+  {
+   "asset_i": "AAPL",
+   "asset_j": "MSFT",
+   "tau": 0.3180083263348203,
+   "spearman": 0.45184431319984625,
+   "pearson": 0.4377924714472915
+  },
+  {
+   "asset_i": "AAPL",
+   "asset_j": "NVDA",
+   "tau": 0.23679503182697734,
+   "spearman": 0.342789067817435,
+   "pearson": 0.3697918452643517
+  },
+  {
+   "asset_i": "AAPL",
+   "asset_j": "JPM",
+   "tau": 0.16965582548139177,
+   "spearman": 0.24808749883176134,
+   "pearson": 0.29869431851035216
+  },
+  {
+   "asset_i": "AAPL",
+   "asset_j": "XOM",
+   "tau": 0.051195400181885106,
+   "spearman": 0.07579048692734423,
+   "pearson": 0.1562731891834196
+  },
+  {
+   "asset_i": "AAPL",
+   "asset_j": "JNJ",
+   "tau": 0.07460275195746137,
+   "spearman": 0.10948902814596233,
+   "pearson": 0.0962238530758168
+  },
+  {
+   "asset_i": "AAPL",
+   "asset_j": "SPY",
+   "tau": 0.42706148855025255,
+   "spearman": 0.5910738108470323,
+   "pearson": 0.6579049354477357
+  },
+  {
+   "asset_i": "AAPL",
+   "asset_j": "TLT",
+   "tau": 0.0896460045887866,
+   "spearman": 0.1316558776307158,
+   "pearson": 0.11197548798800207
+  },
+  {
+   "asset_i": "MSFT",
+   "asset_j": "NVDA",
+   "tau": 0.35893893893893897,
+   "spearman": 0.5095205455205455,
+   "pearson": 0.48677211037394935
+  },
+  {
+   "asset_i": "MSFT",
+   "asset_j": "JPM",
+   "tau": 0.15552752752752752,
+   "spearman": 0.22415441615441617,
+   "pearson": 0.2360686813339893
+  },
+  {
+   "asset_i": "MSFT",
+   "asset_j": "XOM",
+   "tau": -0.024654728692990124,
+   "spearman": -0.03550207192809679,
+   "pearson": 0.005428426754195644
+  },
+  {
+   "asset_i": "MSFT",
+   "asset_j": "JNJ",
+   "tau": -0.029379408788211707,
+   "spearman": -0.04459810473189905,
+   "pearson": -0.08380947613074093
+  },
+  {
+   "asset_i": "MSFT",
+   "asset_j": "SPY",
+   "tau": 0.4725525525525526,
+   "spearman": 0.6411370011370012,
+   "pearson": 0.6203943027393574
+  },
+  {
+   "asset_i": "MSFT",
+   "asset_j": "TLT",
+   "tau": 0.03258268042861667,
+   "spearman": 0.04760784017913426,
+   "pearson": 0.026839825081766203
+  },
+  {
+   "asset_i": "NVDA",
+   "asset_j": "JPM",
+   "tau": 0.1633873873873874,
+   "spearman": 0.24051223251223253,
+   "pearson": 0.26740444721981493
+  },
+  {
+   "asset_i": "NVDA",
+   "asset_j": "XOM",
+   "tau": -0.022640708630858736,
+   "spearman": -0.03338544978607518,
+   "pearson": 0.008629679016601461
+  },
+  {
+   "asset_i": "NVDA",
+   "asset_j": "JNJ",
+   "tau": -0.11318730048784499,
+   "spearman": -0.1668193853198435,
+   "pearson": -0.1887361547471744
+  },
+  {
+   "asset_i": "NVDA",
+   "asset_j": "SPY",
+   "tau": 0.4743263263263264,
+   "spearman": 0.6560791880791882,
+   "pearson": 0.6650937849215005
+  },
+  {
+   "asset_i": "NVDA",
+   "asset_j": "TLT",
+   "tau": 0.026360439520958262,
+   "spearman": 0.0399807284604972,
+   "pearson": 0.0436461715514854
+  },
+  {
+   "asset_i": "JPM",
+   "asset_j": "XOM",
+   "tau": 0.15178624160100954,
+   "spearman": 0.22145025210765518,
+   "pearson": 0.2564912424847011
+  },
+  {
+   "asset_i": "JPM",
+   "asset_j": "JNJ",
+   "tau": 0.11283895179079907,
+   "spearman": 0.16490850940323493,
+   "pearson": 0.13957464238361592
+  },
+  {
+   "asset_i": "JPM",
+   "asset_j": "SPY",
+   "tau": 0.36813213213213214,
+   "spearman": 0.5164920004920005,
+   "pearson": 0.5804089500686586
+  },
+  {
+   "asset_i": "JPM",
+   "asset_j": "TLT",
+   "tau": 0.0023643714645896334,
+   "spearman": 0.0016931897135079902,
+   "pearson": -0.05395114373552746
+  },
+  {
+   "asset_i": "XOM",
+   "asset_j": "JNJ",
+   "tau": 0.10822866157643941,
+   "spearman": 0.15890519328877117,
+   "pearson": 0.15540581554016034
+  },
+  {
+   "asset_i": "XOM",
+   "asset_j": "SPY",
+   "tau": 0.07543766397730904,
+   "spearman": 0.11049836782434824,
+   "pearson": 0.21102002396709113
+  },
+  {
+   "asset_i": "XOM",
+   "asset_j": "TLT",
+   "tau": -0.08394044408675126,
+   "spearman": -0.12471786771109651,
+   "pearson": -0.11431886682221498
+  },
+  {
+   "asset_i": "JNJ",
+   "asset_j": "SPY",
+   "tau": 0.06437844282129633,
+   "spearman": 0.09363711391802526,
+   "pearson": 0.08012131726140219
+  },
+  {
+   "asset_i": "JNJ",
+   "asset_j": "TLT",
+   "tau": 0.1134218755632926,
+   "spearman": 0.1720907346720957,
+   "pearson": 0.13731204347570847
+  },
+  {
+   "asset_i": "SPY",
+   "asset_j": "TLT",
+   "tau": 0.11317551504209702,
+   "spearman": 0.1599935579134806,
+   "pearson": 0.142703866287659
+  }
+ ],
+ "loglik": 1385.200627176091,
+ "aic": -2710.401254352182,
+ "bic": -2563.168595982718,
+ "n_params": 30.0,
+ "selection_criterion": "bic",
+ "status": "ok",
+ "message": ""
+}
