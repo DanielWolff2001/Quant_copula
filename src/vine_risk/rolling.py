@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Sequence
 
 import pandas as pd
 
@@ -118,6 +118,25 @@ class RollingVineModel:
     @property
     def ready(self) -> bool:
         return self._buffer is not None and len(self._buffer) >= self.window
+
+    def prime(self, history: pd.DataFrame, results: Sequence[VineFitResult] = ()) -> None:
+        """Restore state to resume after ``history`` (e.g. from a checkpoint) without refitting.
+
+        The window becomes the last ``window`` rows of ``history``; ``results`` are the fits
+        already made (oldest first). The next refit happens when ``refit_frequency``
+        observations have passed since the last fit, exactly as if the model had run live.
+        """
+        if len(history) < self.window:
+            raise ValueError(f"Need at least {self.window} rows of history, got {len(history)}.")
+        if results and pd.Timestamp(results[-1].timestamp) > history.index[-1]:
+            raise ValueError("Results extend beyond the supplied history (look-ahead).")
+        self._buffer = history.iloc[-self.window:].copy()
+        self.results = list(results)
+        if results:
+            last = pd.Timestamp(results[-1].timestamp)
+            self._since_fit = int((self._buffer.index > last).sum())
+        else:
+            self._since_fit = 0
 
     # ---- model refit -------------------------------------------------------
     def should_refit(self) -> bool:

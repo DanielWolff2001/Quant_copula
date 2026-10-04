@@ -226,3 +226,25 @@ with c8:
         if run.backtest is not None:
             with st.expander("VaR backtest (does next day's loss exceed the VaR?)"):
                 st.dataframe(run.backtest)
+
+# ---------------------------------------------------------------- panel 9: live replay
+st.divider()
+panel("9. Live monitor replay", "A replay of recent history one observation at a time, as a live system would "
+      "see it (scripts/run_live.py). It reproduces the batch results exactly; alerts start when the "
+      "permutation test is significant and the effect is large, and end when the effect fades.")
+live = within(run.live)
+if live is None or live.empty:
+    need("python scripts/run_live.py")
+else:
+    l1, l2, l3, l4 = st.columns(4)
+    l1.metric("Observations replayed", len(live))
+    l2.metric("Refits", int(live["refit"].sum()))
+    l3.metric("New alerts", int(live["new_alert"].sum()))
+    l4.metric("State at the end", str(live["alert_state"].iloc[-1]))
+    if live["scan_ratio_tau"].notna().any():
+        chart(figs.live_figure(live, TH))
+    alerts = live[live["new_alert"]][["alert_state", "message"]]
+    if len(alerts):
+        st.dataframe(alerts)
+    if tables:
+        st.dataframe(live)

@@ -255,3 +255,38 @@ def risk_figure(risk: pd.DataFrame, measure: str, theme: str, models: Sequence[s
     _style(fig, theme, f"99% {'Expected Shortfall' if measure == 'es' else 'VaR'} (% of value)", right_margin=125)
     _end_labels(fig, theme, last, risk.index[0])
     return fig
+
+
+# --- panel 9 (live replay) ------------------------------------------------------------
+def live_figure(live: pd.DataFrame, theme: str, enter_ratio: float = 2.0, exit_ratio: float = 1.5) -> go.Figure:
+    """Permutation-test effect size of a live replay, with the alert periods shaded.
+
+    The line is the tau-matrix distance between the last two windows divided by its
+    typical no-change value (one point per scan date). Shaded bands are the periods the
+    monitor spent in the ``alert`` state, triangles mark where a new alert was raised.
+    """
+    t = tokens(theme)
+    ratio = live["scan_ratio_tau"].dropna()
+    fig = go.Figure(_line(ratio.index, ratio, "distance ÷ no-change level", t["series"][0], fmt=".2f"))
+    state = live["alert_state"].eq("alert")
+    start = None
+    for ts, on in state.items():
+        if on and start is None:
+            start = ts
+        if not on and start is not None:
+            fig.add_vrect(x0=start, x1=ts, fillcolor=t["series"][1], opacity=0.18, line_width=0, layer="below")
+            start = None
+    if start is not None:
+        fig.add_vrect(x0=start, x1=live.index[-1], fillcolor=t["series"][1], opacity=0.18, line_width=0, layer="below")
+    fig.add_hline(y=enter_ratio, line=dict(color=t["ink2"], width=1, dash="dash"))
+    fig.add_hline(y=exit_ratio, line=dict(color=t["muted"], width=1, dash="dot"))
+    for level, label, dash in ((enter_ratio, "alert starts above", "dash"), (exit_ratio, "alert ends below", "dot")):
+        fig.add_trace(go.Scatter(x=[None], y=[None], mode="lines", name=f"{label} {level:g}",
+                                 line=dict(color=t["ink2"] if dash == "dash" else t["muted"], width=1, dash=dash)))
+    new = live[live["new_alert"]]
+    if len(new):
+        fig.add_trace(go.Scatter(x=new.index, y=new["scan_ratio_tau"], mode="markers", name="new alert",
+                                 marker=dict(symbol="triangle-up", size=12, color=t["series"][1],
+                                             line=dict(color=t["ink"], width=1)),
+                                 hovertemplate="new alert: %{y:.2f}"))
+    return _style(fig, theme, "tau-matrix distance ÷ no-change level")

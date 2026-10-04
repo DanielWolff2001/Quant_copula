@@ -10,11 +10,11 @@ used to investigate implications for portfolio tail risk.
 
 This is a research project, not a trading strategy.
 
-> **Status: work in progress.** Phases 1-9 are implemented (data, marginals, static
+> **Status: work in progress.** All ten phases are implemented (data, marginals, static
 > vine, rolling estimation, dependence monitoring, structural change detection,
-> portfolio risk, synthetic validation study, dashboard). The live simulation
-> is still to come.
-> See [Status](#9-status).
+> portfolio risk, synthetic validation study, dashboard, simulated live monitor).
+> The demonstration notebooks suggested in the project brief are still to come.
+> See [Status](#10-status).
 
 ---
 
@@ -82,7 +82,7 @@ The first run downloads prices from Yahoo Finance and caches them in `data/cache
 Fitting about 5,000 windows takes roughly an hour on 4 CPU cores. Progress is saved
 as it goes, so if you stop the script and start it again it **resumes** where it left
 off. Results end up in `data/results/w<window>/` as `.parquet` files (see
-[Glossary](#8-glossary)).
+[Glossary](#9-glossary)).
 
 After a run finishes, compute the monitoring metrics:
 
@@ -130,12 +130,13 @@ Quant_copula/
 │       ├── copula.py          VineCopula: fits a vine and summarises it.
 │       ├── dependence.py      Pairwise tau/Spearman/Pearson and the monitoring metrics.
 │       ├── rolling.py         RollingVineModel: the rolling-window machinery.
+│       ├── monitor.py         LiveMonitor: sequential monitoring with alerts (simulated live).
 │       ├── portfolio.py       Loss, VaR, Expected Shortfall from simulated scenarios.
 │       ├── change_detection.py Structural change scores and the calibrated permutation test.
 │       ├── synthetic.py       Simulated data with known dependence regimes.
 │       ├── validation.py      The synthetic validation study (experiments, metrics).
 │       ├── dashboard_data.py  Loads a finished run for the dashboard (no Streamlit inside).
-│       ├── dashboard_figures.py The eight dashboard charts (Plotly), light and dark theme.
+│       ├── dashboard_figures.py The nine dashboard charts (Plotly), light and dark theme.
 │       └── visualization.py   Plots (prices, uniformity check, vine trees).
 │
 ├── dashboard/
@@ -146,6 +147,7 @@ Quant_copula/
 │   ├── compute_metrics.py Turns a finished run into dependence_metrics.parquet.
 │   ├── detect_changes.py  Structural change scores and permutation-test scan.
 │   ├── compute_risk.py    Rolling portfolio VaR / ES and a VaR backtest.
+│   ├── run_live.py        Simulated live monitoring: replay history day by day.
 │   ├── run_validation.py  The synthetic validation study (about 30 minutes).
 │   └── plot_validation.py Figure for the validation study.
 │
@@ -427,6 +429,7 @@ says which script to run instead of failing.
 | 6 Vine structure | the fitted vine on the chosen date, tree by tree; hover an edge for family, tau and tail dependence | `run_rolling.py` |
 | 7 Structural-change score | one of four scores, with the periods above an adjustable threshold shaded | `detect_changes.py` |
 | 8 Portfolio risk | rolling 99% Expected Shortfall or VaR for the vine copula and three benchmarks, plus the VaR backtest | `compute_risk.py` |
+| 9 Live monitor replay | the alert history of a simulated live run | `run_live.py` |
 
 Charts are interactive (hover for exact values) and follow the light or dark theme of
 Streamlit. "Show data tables" in the sidebar lists the numbers behind every chart. The threshold
@@ -435,7 +438,72 @@ level, so use the p-values in `change_scan.parquet` (section 6) for decisions.
 
 ---
 
-## 8. Glossary
+## 8. The live monitor (simulated)
+
+The monitor is the "live" mode of the project: it receives **one observation at a time**
+and, after each, reports updated dependence metrics, a comparison with the previous model, a
+change score and an alert state. There is no connection to a market-data provider; instead,
+history is *replayed* day by day, which makes the whole system testable and reproducible.
+
+```bash
+python scripts/run_live.py --days 120                      # replay the last 120 days
+python scripts/run_live.py --start 2023-11-20 --end 2024-02-15
+```
+
+What happens for every new price (`src/vine_risk/monitor.py`, class `LiveMonitor`):
+
+```
+new price -> log return -> update the rolling window -> refit if due (refit_frequency)
+          -> dependence metrics (D_t, tails, vine structure changes vs the previous fit)
+          -> distance to the model one window earlier
+          -> permutation test of the last two windows (every 5th day)
+          -> alert state -> record (console, JSON log, table)
+```
+
+The script first *primes* the monitor with the history before the start date and the fits
+already saved in `checkpoint.jsonl`, exactly as a real system would resume from saved state,
+so a replay of 120 days costs 120 refits (about a second each) and not 5,000.
+
+**Alerts** come from the permutation test of section 6, because it is calibrated and does not
+depend on the number of assets. An alert *starts* when the Kendall-tau matrix of the latest
+window differs significantly (p <= 1%) from the one before **and** the difference is at
+least 2 times what noise alone produces; it *ends* when that factor falls below 1.5. Using two
+levels stops the alert from flickering around a single cut-off. On the real data this gives 11
+alert episodes in 20 years (one every two years or so), against about 40% of scan dates that are
+individually significant, because with a year of data even small differences are significant.
+These thresholds (2.0 and 1.5) are conventions, not estimated quantities; change them in
+`MonitorConfig`.
+
+**No look-ahead, verified.** After the replay, the script compares the monitor's output with
+the batch results stored in the run folder (`--no-verify` skips this). On the real data the
+replays match to rounding error (differences of 0 to 1e-18) for the metrics, the change scores,
+the permutation tests and the VaR/ES numbers, for example:
+
+```
+alert state at the start: normal
+2023-12-14 [alert] D_t=0.207 ES=2.22% ** ALERT ** dependence differs from the previous window
+    (tau-matrix distance 2.2x the no-change level, p=0.002)
+60 observations, 60 refits in 75s; 1 new alert(s); final state: alert
+  OK   m_d_t         vs dependence_metrics.parquet            60 dates, max abs diff 0.00e+00
+  OK   scan_p_tau    vs change_scan.parquet                   12 dates, max abs diff 0.00e+00
+  OK   risk_es_vine  vs portfolio_risk.parquet                12 dates, max abs diff 0.00e+00
+PASS: the live replay reproduces the batch results
+```
+
+The automated tests (`tests/test_monitor.py`) also check that running on a prefix of the data
+gives the same records as the full run, and that resuming from a checkpoint gives the same
+records as running continuously. Outputs go to `<run>/live/` (`live_log.jsonl` with every
+record as it happens, `live_log.parquet`, `live_alerts.csv`), and panel 9 of the dashboard
+shows them.
+
+Things to know: the monitor is not a trading signal; an alert says that the dependence of
+the last year differs from the year before, not why; resuming from saved fits needs the
+alert state as well (the script derives it from the stored scans, otherwise an ongoing alert
+would be reported as new); and the first alert can only come after `2 x window` observations.
+
+---
+
+## 9. Glossary
 
 | Term | Meaning |
 |------|---------|
@@ -456,7 +524,7 @@ level, so use the p-values in `change_scan.parquet` (section 6) for decisions.
 
 ---
 
-## 9. Status
+## 10. Status
 
 | Phase | Content | State |
 |------|---------|-------|
@@ -469,9 +537,9 @@ level, so use the p-values in `change_scan.parquet` (section 6) for decisions.
 | 7 | Portfolio risk (VaR, ES) | done |
 | 8 | Synthetic validation study | done |
 | 9 | Streamlit dashboard | done |
-| 10 | Live (replay) simulation | next |
+| 10 | Live (replay) simulation | done |
 
-## 10. Limitations (to be extended)
+## 11. Limitations (to be extended)
 
 - A rolling window describes *local* history; financial dependence is not stationary.
 - Different vine structures can have nearly identical likelihoods, so structure changes
@@ -488,4 +556,6 @@ level, so use the p-values in `change_scan.parquet` (section 6) for decisions.
   daily data; a non-significant tail test is weak evidence of "no change".
 - Moving-window comparisons at neighbouring dates are not independent tests, so the
   multiple-testing correction is approximate.
+- The live monitor is a replay of history. A real feed would bring late, missing or revised
+  prices, which the monitor rejects (it raises an error) rather than repairs.
 - Daily data only; no intraday dynamics.

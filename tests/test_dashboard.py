@@ -13,6 +13,7 @@ from vine_risk.dashboard_data import (
     read_assets, tau_matrix_at,
 )
 from vine_risk.dependence import dependence_metrics, pairwise_series
+from vine_risk.monitor import LiveMonitor, MonitorConfig, records_to_frame
 from vine_risk.portfolio import backtest_var, rolling_risk
 from vine_risk.rolling import RollingVineModel
 from vine_risk.synthetic import Regime, simulate_regimes
@@ -107,6 +108,16 @@ def small_run(tmp_path_factory):
     risk = rolling_risk(res, r, n_sims=2 ** 9, step=2)
     risk.to_parquet(run / "portfolio_risk.parquet")
     backtest_var(risk, r).to_csv(run / "var_backtest.csv")
+    # a short live replay, primed with the stored fits (as scripts/run_live.py does)
+    mcfg = MonitorConfig(window=80, refit_frequency=5, vine_kwargs=kw, scan_step=10, n_perm=49, block=10,
+                         alpha=0.05, risk_every_fits=0)
+    mon = LiveMonitor(list(r.columns), mcfg)
+    cut = 340
+    mon.prime(r.iloc[:cut], [x for x in res if pd.Timestamp(x.timestamp) <= r.index[cut - 1]])
+    for ts, row in r.iloc[cut:].iterrows():
+        mon.on_return(ts, row)
+    (run / "live").mkdir()
+    records_to_frame(mon.records).to_parquet(run / "live" / "live_log.parquet")
     cache = root / "cache"
     cache.mkdir()
     prices = 100 * np.exp(r.cumsum())
@@ -145,6 +156,9 @@ def test_every_figure_builds_in_both_themes(small_run, theme):
     fit = small_run["results"][-1]
     for tree in (1, 2):
         assert len(figs.vine_tree_figure(fit, tree, theme).data) == 3
+    live = figs.live_figure(d.live, theme)
+    assert d.live is not None and len(live.data) >= 3  # ratio line + two threshold legend entries (+ alerts)
+    assert len(live.layout.shapes) >= 2  # the two threshold lines (+ shaded alert periods)
 
 
 def test_log_axis_labels_use_log_units():
@@ -183,9 +197,9 @@ def _app(small_run, monkeypatch, run_dir=None):
 def test_app_renders_all_panels_and_responds_to_widgets(small_run, monkeypatch):
     at = _app(small_run, monkeypatch).run()
     assert not at.exception
-    assert [s.value[:2] for s in at.subheader] == ["1.", "2.", "3.", "4.", "5.", "6.", "7.", "8."]
-    assert len(at.get("plotly_chart")) == 8
-    assert len(at.metric) == 4
+    assert [s.value[:2] for s in at.subheader] == ["1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9."]
+    assert len(at.get("plotly_chart")) == 9
+    assert len(at.metric) == 8  # 4 key figures + 4 in the live panel
     at.selectbox(key=None)  # widgets exist
     pair_b = [s for s in at.selectbox if s.label == "Asset B"][0]
     pair_b.select("X3").run()
@@ -204,10 +218,11 @@ def test_app_degrades_gracefully_without_optional_files(small_run, monkeypatch, 
     shutil.copytree(small_run["run"], partial)
     for name in ("portfolio_risk.parquet", "change_scan.parquet", "structural_change_scores.parquet"):
         (partial / name).unlink()
+    shutil.rmtree(partial / "live")
     at = _app(small_run, monkeypatch, partial).run()
     assert not at.exception
     texts = " ".join(i.value for i in at.info)
-    assert "compute_risk.py" in texts and "detect_changes.py" in texts
+    assert "compute_risk.py" in texts and "detect_changes.py" in texts and "run_live.py" in texts
 
 
 def test_app_shows_error_for_missing_run(small_run, monkeypatch, tmp_path):

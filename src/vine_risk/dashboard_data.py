@@ -44,6 +44,7 @@ class RunData:
     prices: pd.DataFrame | None = None
     returns: pd.DataFrame | None = None
     window: int = 0  # observations per fit
+    live: pd.DataFrame | None = None  # log of a simulated live replay (scripts/run_live.py)
 
 
 def _read(run_dir: Path, name: str, required: bool = False) -> pd.DataFrame | None:
@@ -95,7 +96,7 @@ def load_run(
         scan=_read(d, "change_scan.parquet"),
         risk=_read(d, "portfolio_risk.parquet"),
         backtest=pd.read_csv(bt, index_col=0) if bt.exists() else None,
-        prices=prices, returns=returns,
+        prices=prices, returns=returns, live=_read(d, "live/live_log.parquet"),
     )
 
 
