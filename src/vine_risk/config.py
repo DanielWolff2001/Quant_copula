@@ -43,8 +43,15 @@ class RollingConfig:
 @dataclass(frozen=True)
 class RiskConfig:
     confidence_level: float = 0.99
-    simulations: int = 10000
+    simulations: int = 16384  # Sobol points per window; a power of 2 works best
     seed: int = 42
+    weights: list[float] | None = None  # None = equal weights across the assets
+
+    def __post_init__(self) -> None:
+        if not 0 < self.confidence_level < 1:
+            raise ValueError("risk.confidence_level must be in (0, 1)")
+        if self.simulations < 100:
+            raise ValueError("risk.simulations must be >= 100")
 
 
 @dataclass(frozen=True)

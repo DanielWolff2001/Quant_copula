@@ -19,5 +19,6 @@ rolling:
 
 risk:
   confidence_level: 0.99
-  simulations: 10000
+  simulations: 16384         # Sobol points per window (power of 2)
+  weights: null              # null = equal weights; or a list with one weight per asset
   seed: 42

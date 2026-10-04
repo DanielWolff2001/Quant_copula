@@ -10,10 +10,11 @@ used to investigate implications for portfolio tail risk.
 
 This is a research project, not a trading strategy.
 
-> **Status: work in progress.** Phases 1-6 are implemented (data, marginals, static
-> vine, rolling estimation, dependence monitoring, structural change detection). Portfolio risk, portfolio risk,
-> the dashboard and the live simulation are still to come (the full synthetic validation study
-> of Phase 8 is only partly done: see section 6). See [Status](#status).
+> **Status: work in progress.** Phases 1-7 are implemented (data, marginals, static
+> vine, rolling estimation, dependence monitoring, structural change detection,
+> portfolio risk). The dashboard and the live simulation are still to come, and the
+> full synthetic validation study of Phase 8 is only partly done (see section 6).
+> See [Status](#8-status).
 
 ---
 
@@ -129,6 +130,7 @@ Quant_copula/
 │       ├── copula.py          VineCopula: fits a vine and summarises it.
 │       ├── dependence.py      Pairwise tau/Spearman/Pearson and the monitoring metrics.
 │       ├── rolling.py         RollingVineModel: the rolling-window machinery.
+│       ├── portfolio.py       Loss, VaR, Expected Shortfall from simulated scenarios.
 │       ├── change_detection.py Structural change scores and the calibrated permutation test.
 │       ├── synthetic.py       Simulated data with known dependence regimes (for validation).
 │       └── visualization.py   Plots (prices, uniformity check, vine trees).
@@ -136,7 +138,8 @@ Quant_copula/
 ├── scripts/
 │   ├── run_rolling.py     Command-line entry point to run the rolling fit.
 │   ├── compute_metrics.py Turns a finished run into dependence_metrics.parquet.
-│   └── detect_changes.py  Structural change scores and permutation-test scan.
+│   ├── detect_changes.py  Structural change scores and permutation-test scan.
+│   └── compute_risk.py    Rolling portfolio VaR / ES and a VaR backtest.
 │
 ├── tests/                 Automated checks of the maths and the code (run with pytest).
 │
@@ -151,7 +154,7 @@ Quant_copula/
     └── dashboard/         Streamlit dashboard (planned).
 ```
 
-Planned modules that do not exist yet: `portfolio.py` (VaR / Expected Shortfall) and `diagnostics.py`.
+Planned modules that do not exist yet: `diagnostics.py`.
 
 ### Why is the code in `src/vine_risk/` and not next to the scripts?
 
@@ -367,9 +370,9 @@ On the real 8-asset data (window 250, 2006-2026), with the calibrated test:
 | 4 | Rolling estimation (checkpointed, parallel) | done |
 | 5 | Dependence monitoring metrics (average tau, changes, tail dependence) | done |
 | 6 | Structural change detection | done |
-| 7 | Portfolio risk (VaR, ES) | next |
+| 7 | Portfolio risk (VaR, ES) | done |
 | 8 | Synthetic validation | partly (generator and detector checks done; full study planned) |
-| 9 | Streamlit dashboard | planned |
+| 9 | Streamlit dashboard | next |
 | 10 | Live (replay) simulation | planned |
 
 ## 9. Limitations (to be extended)
