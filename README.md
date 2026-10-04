@@ -10,10 +10,10 @@ used to investigate implications for portfolio tail risk.
 
 This is a research project, not a trading strategy.
 
-> **Status: work in progress.** Phases 1-7 are implemented (data, marginals, static
+> **Status: work in progress.** Phases 1-8 are implemented (data, marginals, static
 > vine, rolling estimation, dependence monitoring, structural change detection,
-> portfolio risk). The dashboard and the live simulation are still to come, and the
-> full synthetic validation study of Phase 8 is only partly done (see section 6).
+> portfolio risk, synthetic validation study). The dashboard and the live simulation
+> are still to come.
 > See [Status](#8-status).
 
 ---
@@ -132,14 +132,17 @@ Quant_copula/
 │       ├── rolling.py         RollingVineModel: the rolling-window machinery.
 │       ├── portfolio.py       Loss, VaR, Expected Shortfall from simulated scenarios.
 │       ├── change_detection.py Structural change scores and the calibrated permutation test.
-│       ├── synthetic.py       Simulated data with known dependence regimes (for validation).
+│       ├── synthetic.py       Simulated data with known dependence regimes.
+│       ├── validation.py      The synthetic validation study (experiments, metrics).
 │       └── visualization.py   Plots (prices, uniformity check, vine trees).
 │
 ├── scripts/
 │   ├── run_rolling.py     Command-line entry point to run the rolling fit.
 │   ├── compute_metrics.py Turns a finished run into dependence_metrics.parquet.
 │   ├── detect_changes.py  Structural change scores and permutation-test scan.
-│   └── compute_risk.py    Rolling portfolio VaR / ES and a VaR backtest.
+│   ├── compute_risk.py    Rolling portfolio VaR / ES and a VaR backtest.
+│   ├── run_validation.py  The synthetic validation study (about 30 minutes).
+│   └── plot_validation.py Figure for the validation study.
 │
 ├── tests/                 Automated checks of the maths and the code (run with pytest).
 │
@@ -147,7 +150,9 @@ Quant_copula/
 │   ├── cache/             Downloaded prices (auto-created, not in git).
 │   └── results/           Output of the rolling runs (auto-created, not in git).
 │
-├── reports/figures/       Saved figures and example outputs.
+├── reports/
+│   ├── figures/           Saved figures and example outputs.
+│   └── validation/        Result tables of the synthetic validation study (CSV).
 │
 └── (planned)
     ├── notebooks/         Jupyter notebooks that demonstrate the package.
@@ -309,21 +314,78 @@ python scripts/detect_changes.py        # after run_rolling.py; writes two parqu
   window with the one before it. Observations (in blocks of 10 days) are randomly
   shuffled between the two windows many times to learn how large the difference looks
   when nothing has changed. Statistics: the whole tau matrix, and the lower and upper
-  tail dependence, each as a "any pair changed" and an "average over pairs" version. The
+  tail dependence, each as an "any pair changed" and an "average over pairs" version. The
   file also has effect sizes (`stat_*` relative to `null_mean_*`) and Benjamini-Hochberg
   corrected flags, because many dates are tested.
 
-What we learned from simulated data with a known answer (`tests/`, `synthetic.py`):
+### 6.1 Does it work? The synthetic validation study
 
-| Finding | Evidence |
-|---------|----------|
-| Comparing a window with the *previous day's* window cannot detect a regime change | One-step distances were as small before the change (0.06) as after it (0.07); the distance to the window one year earlier jumped from about 0.36 to 1.4. |
-| z-scores and CUSUM of rolling estimates are not calibrated | Neighbouring windows share almost all their data, so estimates are strongly autocorrelated; a z > 3 threshold fired on data with constant dependence. They are kept as diagnostics only. |
-| The permutation test is calibrated | About 1-2% of dates are flagged at the 1% level when nothing changed, and about 80% of dates are flagged in the stretch where the two windows straddle a real jump in correlation. |
-| Tail dependence must be measured with ranks *inside* each window | With pooled ranks a volatile period creates extra joint extremes, and about 30% of dates were falsely flagged on data with constant dependence but changing volatility. |
-| A moderate change that only affects the tails (Gaussian to Student-t with 3 degrees of freedom, same Kendall tau) is **not** detectable with 250 or 500 daily observations | Each window holds only about 25 tail observations per asset; the gap in tail dependence (0.33 vs 0.40 at the 10% level) is about the size of the sampling noise. |
+Before trusting any result on real stocks, the detectors were run on simulated data
+where the truth is known (`src/vine_risk/validation.py`, `python scripts/run_validation.py`,
+about 30 minutes; every number below is in `reports/validation/*.csv`). Four assets, 250-day
+windows, 20 simulated histories per experiment, change at day 900 of 1,700. An alert is
+`p <= 0.01`. *False alarm* is the share of dates without any change that raised an alert;
+*power* is the share of dates raising an alert in the stretch where the two compared
+windows straddle the change.
 
-On the real 8-asset data (window 250, 2006-2026), with the calibrated test:
+![Effect size around a known change](reports/figures/phase8_detection.png)
+
+| Experiment | False alarms | Power (tau matrix) | Power (best tail statistic) | Histories with a detection |
+|------------|-------------:|-------------------:|----------------------------:|---------------------------:|
+| A: constant dependence | 0-1% | n/a | n/a | n/a |
+| A': constant dependence, clustered volatility | 1% | n/a | n/a | n/a |
+| B: correlation jumps 0.3 → 0.7 | 1-2% | **94%** | 46% | 100% |
+| C1: Gaussian → Student-t(3), same Kendall tau | 1% | 0% | 3% | 5% (tau) to 30% (tail) |
+| C2: Gaussian → Student-t(1), same Kendall tau | 1% | 2% | 21% | 10% (tau) to 60% (tail) |
+
+What this means:
+
+- **The permutation test keeps its promise**: about 1% false alarms at the 1% level,
+  also when volatility clusters.
+- **Correlation changes are found reliably**, typically about 115 days (about half a
+  window) after they happen.
+- **Tail-only changes are mostly invisible** to every statistic here. Only a very
+  strong tail change (C2, tail coefficient 0 to 0.5 at unchanged Kendall tau) is picked
+  up, and then only in about half of the histories. The moderate one (C1) is not
+  detectable with 250 daily observations: each window holds about 25 tail observations
+  per asset, and the gap in tail dependence (0.33 vs 0.40 at the 10% level) is about the
+  size of the sampling noise.
+- **Distance scores from the rolling vine fits** (`structural_change_scores`) have no
+  built-in null distribution, so their thresholds were calibrated by simulation (99th
+  percentile of the no-change experiment). Calibrated on the harder volatility-clustering
+  null, the Kendall-tau distance has 100% power in B (but 3% in C2), and the
+  model-implied distance, which also uses the fitted tail dependence, has 74% in B and
+  32% in C2 with about 0% false alarms. It is the more sensitive to tail changes, at
+  the price of needing this calibration. Calibrated only on data *without* volatility
+  clustering, the thresholds are too low and false alarms rise to 3-10% when volatility
+  clusters.
+- **Comparing consecutive days is useless**: the one-step distance (the literal "S_t"
+  of the brief) has only 1-6% power in B because neighbouring windows share 249 of 250
+  observations. Comparing with the window one year earlier is what works.
+- **The z-score** of the disjoint-window distance (`z > 3`) is well calibrated (about
+  1% false alarms) but has only 24% power in B: the baseline absorbs the shift. The
+  **CUSUM** of the average dependence detects B (82% power) but keeps alarming after
+  the change, because it never resets (31% "false alarms" are mostly that), and finds
+  nothing in the tail experiments.
+
+How well does the fitted vine recover the truth? (`reports/validation/estimation_accuracy.csv`,
+40 histories per window length; true copula Student-t(3) with the same marginals)
+
+| Window | Lower-tail coefficient (RMSE) | 99% ES: vine | 99% ES: Gaussian copula | 99% ES: historical |
+|-------:|------------------------------:|-------------:|------------------------:|-------------------:|
+| 125 | 25% | bias -6%, RMSE 13% | bias -12%, RMSE 15% | bias -14%, RMSE 18% |
+| 250 | 14% | bias +3%, RMSE 11% | bias -7%, RMSE 10% | bias -2%, RMSE 12% |
+| 500 | 7% | bias +2%, RMSE 7% | bias -8%, RMSE 9% | bias -1%, RMSE 9% |
+
+A Gaussian copula underestimates the expected shortfall by 7-8% when the truth has tail
+dependence, which is real but smaller than the estimation noise of a single 250-day
+window (about 10%). With a Gaussian truth the vine costs a little accuracy
+(ES RMSE 9.6% vs 7.6% at 250 days). Historical simulation from a short window
+underestimates the 99% tail (bias -2% to -14% for windows up to 250 days).
+
+### 6.2 What the detectors say about the real data
+
+On the real 8-asset data (window 250, 2006-2026), with the calibrated permutation test:
 
 - The Kendall-tau matrix differs significantly from the year before on about 39% of
   scan dates (30% after multiple-testing correction). Dependence is clearly not
@@ -332,8 +394,8 @@ On the real 8-asset data (window 250, 2006-2026), with the calibrated test:
 - Much of this is the whole market becoming more or less correlated together (the tau
   distance correlates 0.86 with the change in average dependence).
 - Tail-dependence changes are rarely significant (3-10% of dates raw, none after
-  correction). This is not evidence that the tails do not change: the test has little
-  power for them (see above).
+  correction). The study above shows why this is weak evidence of "no change": even a
+  strong tail change (C2) is missed in about half of the simulated histories.
 - None of this establishes *why* dependence changed. These are associations with
   periods in the calendar, not causal statements.
 
@@ -371,7 +433,7 @@ On the real 8-asset data (window 250, 2006-2026), with the calibrated test:
 | 5 | Dependence monitoring metrics (average tau, changes, tail dependence) | done |
 | 6 | Structural change detection | done |
 | 7 | Portfolio risk (VaR, ES) | done |
-| 8 | Synthetic validation | partly (generator and detector checks done; full study planned) |
+| 8 | Synthetic validation study | done |
 | 9 | Streamlit dashboard | next |
 | 10 | Live (replay) simulation | planned |
 

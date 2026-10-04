@@ -20,10 +20,13 @@ compared (they share all but one observation, so the score is almost pure estima
 noise and cannot see a regime change); ``lag = window / refit_frequency`` compares two
 disjoint windows (see :func:`default_lag`).
 
-Calibration warning (found on synthetic data, see ``tests/`` and the README): rolling
-estimates from overlapping windows are strongly autocorrelated, so a z-score threshold
-or CUSUM on them is *not* calibrated and raises false alarms on constant-dependence
-data. The permutation test (5) is calibrated by construction.
+Calibration (measured in the validation study, :mod:`vine_risk.validation`): the distance
+scores have no built-in null distribution, so an alert threshold has to be calibrated by
+simulating data without change. A threshold calibrated on constant-dependence data is too
+low once volatility clusters (false alarms rise from 1% to 3-10%), so calibrate on the
+harder null. With ``lag = 1`` the scores cannot see a regime change at all. The z-score of
+the disjoint-window distance has about 1% false alarms above 3 but little power. The
+permutation test (5) is calibrated by construction.
 """
 from __future__ import annotations
 
@@ -135,8 +138,10 @@ def structural_change_scores(
       ``lag = default_lag(window, refit_frequency)``; with ``lag = 1`` it is the PDF's
       one-step ``S_t``, which is dominated by estimation noise.
 
-    ``baseline`` is counted in fits. The ``z_*``/``cusum`` columns are uncalibrated
-    diagnostics (see the module docstring); use :func:`change_scan` for decisions.
+    ``baseline`` is counted in fits. The ``z_*``/``cusum`` columns are secondary
+    diagnostics: the z-score is close to calibrated but has little power (the baseline
+    absorbs the shift), and the CUSUM never resets, so it keeps alarming after a change.
+    Use a null-calibrated threshold on the distances, or :func:`change_scan`, to decide.
     """
     tau = pairwise_series(results, "tau")
     out = pd.DataFrame({"s_tau": frobenius_change(tau, lag)})

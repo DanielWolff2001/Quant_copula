@@ -43,9 +43,15 @@ class Regime:
 
 def simulate_regimes(
     regimes: list[Regime], n_assets: int = 4, seed: int = 0, start: str = "2010-01-04",
-    vol: float = 0.01,
+    vol: float = 0.01, vol_phi: float | None = None, vol_eta: float = 0.15,
 ) -> pd.DataFrame:
-    """Concatenate the regimes into one T x d return matrix (N(0, vol^2) margins)."""
+    """Concatenate the regimes into one T x d return matrix (N(0, vol^2) margins).
+
+    With ``vol_phi`` set, all assets are multiplied by a common stochastic volatility
+    ``exp(h_t)`` with ``h_t = vol_phi * h_{t-1} + vol_eta * eps_t``, which mimics
+    volatility clustering. The copula regimes (and hence the dependence structure
+    being tested) are unchanged by it; it is used as a harder "no change" null.
+    """
     if n_assets < 2:
         raise ValueError("n_assets must be >= 2.")
     rng = np.random.default_rng(seed)
@@ -62,5 +68,11 @@ def simulate_regimes(
             u = stats.t.cdf(z / np.sqrt(w), reg.df)
         parts.append(stats.norm.ppf(u) * vol)
     x = np.vstack(parts)
+    if vol_phi is not None:
+        h = np.zeros(len(x))
+        eps = rng.standard_normal(len(x))
+        for t in range(1, len(x)):
+            h[t] = vol_phi * h[t - 1] + vol_eta * eps[t]
+        x = x * np.exp(h)[:, None]
     idx = pd.bdate_range(start, periods=len(x))
     return pd.DataFrame(x, index=idx, columns=[f"X{i + 1}" for i in range(n_assets)])

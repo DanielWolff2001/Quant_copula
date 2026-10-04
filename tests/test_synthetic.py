@@ -34,3 +34,13 @@ def test_invalid_input():
         simulate_regimes([Regime(10, 1.0)])
     with pytest.raises(ValueError):
         simulate_regimes([Regime(10, 0.5)], n_assets=1)
+
+
+def test_volatility_clustering_option():
+    base = simulate_regimes([Regime(2000, 0.5)], n_assets=3, seed=4)
+    vc = simulate_regimes([Regime(2000, 0.5)], n_assets=3, seed=4, vol_phi=0.98)
+    assert base.shape == vc.shape
+    ratio = vc / base  # the common volatility factor is shared by all assets and days
+    assert np.allclose(ratio.iloc[:, 0], ratio.iloc[:, 1]) and ratio.iloc[:, 0].std() > 0.2
+    sq = (vc ** 2).iloc[:, 0]
+    assert sq.autocorr(1) > 0.15 and abs((base ** 2).iloc[:, 0].autocorr(1)) < 0.1  # clustering
