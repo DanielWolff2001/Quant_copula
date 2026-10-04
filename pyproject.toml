@@ -23,7 +23,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest"]
-dashboard = ["streamlit"]
+dashboard = ["streamlit", "plotly"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

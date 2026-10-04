@@ -33,15 +33,15 @@ def plot_uniformity(u: pd.DataFrame):
     return fig
 
 
-def plot_vine_tree(result, tree: int = 1, ax=None):
-    """Draw one tree of the fitted vine.
+def vine_tree_graph(result, tree: int = 1):
+    """Nodes and edges of one tree of a fitted vine.
 
-    Tree 1 nodes are assets. For ``tree > 1`` the nodes are the edges of the previous
-    tree (labelled ``conditioned|conditioning``), and each edge is a pair-copula,
-    labelled with its family and Kendall's tau.
+    Tree 1 nodes are the assets. For ``tree > 1`` the nodes are the edges of the previous
+    tree (labelled ``conditioned|conditioning``), and each edge is a pair-copula.
+
+    Returns ``(nodes, edges)``: ``nodes`` is a list of labels, ``edges`` a list of
+    ``(node_u, node_v, pair_copula_info)`` tuples.
     """
-    import networkx as nx
-
     pcs = [p for p in result.pair_copulas if p.tree == tree]
     if not pcs:
         raise ValueError(f"Vine has no tree {tree}.")
@@ -49,23 +49,30 @@ def plot_vine_tree(result, tree: int = 1, ax=None):
     def label(cond, given):
         return f"{cond[0]},{cond[1]}" + (f"|{','.join(given)}" if given else "")
 
-    g = nx.Graph()
     if tree == 1:
-        g.add_nodes_from(result.assets)
-        for p in pcs:
-            g.add_edge(*p.conditioned, text=f"{p.family}\n{p.tau:.2f}")
-    else:
-        prev = [p for p in result.pair_copulas if p.tree == tree - 1]
-        members = {label(q.conditioned, q.conditioning): set(q.conditioned) | set(q.conditioning)
-                   for q in prev}
-        g.add_nodes_from(members)
-        for p in pcs:
-            a, b = p.conditioned
-            c = set(p.conditioning)
-            ends = [n for n, m in members.items() if m in ({a} | c, {b} | c)]
-            if len(ends) == 2:
-                g.add_edge(*ends, text=f"{p.family}\n{p.tau:.2f}")
+        return list(result.assets), [(p.conditioned[0], p.conditioned[1], p) for p in pcs]
+    prev = [p for p in result.pair_copulas if p.tree == tree - 1]
+    members = {label(q.conditioned, q.conditioning): set(q.conditioned) | set(q.conditioning) for q in prev}
+    edges = []
+    for p in pcs:
+        a, b = p.conditioned
+        c = set(p.conditioning)
+        ends = [n for n, m in members.items() if m in ({a} | c, {b} | c)]
+        if len(ends) == 2:
+            edges.append((ends[0], ends[1], p))
+    return list(members), edges
 
+
+def plot_vine_tree(result, tree: int = 1, ax=None):
+    """Draw one tree of the fitted vine (see :func:`vine_tree_graph`); edges are labelled
+    with the pair-copula family and Kendall's tau."""
+    import networkx as nx
+
+    nodes, edges = vine_tree_graph(result, tree)
+    g = nx.Graph()
+    g.add_nodes_from(nodes)
+    for u, v, p in edges:
+        g.add_edge(u, v, text=f"{p.family}\n{p.tau:.2f}")
     if ax is None:
         _, ax = plt.subplots(figsize=(6, 5))
     pos = nx.circular_layout(g)

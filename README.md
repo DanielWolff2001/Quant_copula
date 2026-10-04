@@ -10,11 +10,11 @@ used to investigate implications for portfolio tail risk.
 
 This is a research project, not a trading strategy.
 
-> **Status: work in progress.** Phases 1-8 are implemented (data, marginals, static
+> **Status: work in progress.** Phases 1-9 are implemented (data, marginals, static
 > vine, rolling estimation, dependence monitoring, structural change detection,
-> portfolio risk, synthetic validation study). The dashboard and the live simulation
-> are still to come.
-> See [Status](#8-status).
+> portfolio risk, synthetic validation study, dashboard). The live simulation
+> is still to come.
+> See [Status](#9-status).
 
 ---
 
@@ -82,7 +82,7 @@ The first run downloads prices from Yahoo Finance and caches them in `data/cache
 Fitting about 5,000 windows takes roughly an hour on 4 CPU cores. Progress is saved
 as it goes, so if you stop the script and start it again it **resumes** where it left
 off. Results end up in `data/results/w<window>/` as `.parquet` files (see
-[Glossary](#7-glossary)).
+[Glossary](#8-glossary)).
 
 After a run finishes, compute the monitoring metrics:
 
@@ -134,7 +134,12 @@ Quant_copula/
 │       ├── change_detection.py Structural change scores and the calibrated permutation test.
 │       ├── synthetic.py       Simulated data with known dependence regimes.
 │       ├── validation.py      The synthetic validation study (experiments, metrics).
+│       ├── dashboard_data.py  Loads a finished run for the dashboard (no Streamlit inside).
+│       ├── dashboard_figures.py The eight dashboard charts (Plotly), light and dark theme.
 │       └── visualization.py   Plots (prices, uniformity check, vine trees).
+│
+├── dashboard/
+│   └── app.py             The Streamlit dashboard (thin: widgets and layout only).
 │
 ├── scripts/
 │   ├── run_rolling.py     Command-line entry point to run the rolling fit.
@@ -155,8 +160,7 @@ Quant_copula/
 │   └── validation/        Result tables of the synthetic validation study (CSV).
 │
 └── (planned)
-    ├── notebooks/         Jupyter notebooks that demonstrate the package.
-    └── dashboard/         Streamlit dashboard (planned).
+    └── notebooks/         Jupyter notebooks that demonstrate the package.
 ```
 
 Planned modules that do not exist yet: `diagnostics.py`.
@@ -401,7 +405,37 @@ On the real 8-asset data (window 250, 2006-2026), with the calibrated permutatio
 
 ---
 
-## 7. Glossary
+## 7. The dashboard
+
+```bash
+pip install -e ".[dashboard]"            # adds streamlit and plotly (once)
+streamlit run dashboard/app.py           # opens http://localhost:8501
+```
+
+It reads the files that the scripts in `scripts/` wrote into `data/results/w250/` (set another
+folder in the sidebar, or with the environment variable `VINE_RISK_RUN_DIR`). It needs at
+least the output of `run_rolling.py` and `compute_metrics.py`; a panel whose file is missing
+says which script to run instead of failing.
+
+| Panel | Shows | Needs |
+|-------|-------|-------|
+| 1 Asset prices / returns | selected assets, rebased prices on a log scale or daily log returns | `run_rolling.py` (prices come from the local cache) |
+| 2 Rolling dependence | average absolute Kendall tau D_t, optionally with Pearson and lower tail | `compute_metrics.py` |
+| 3 Pairwise dependence | heatmap of Kendall tau between all pairs on a chosen date | `compute_metrics.py` |
+| 4 Dependence evolution | Kendall tau of two chosen assets through time | `compute_metrics.py` |
+| 5 Tail dependence | the fitted vine's lower and upper tail dependence for the same pair | `compute_metrics.py` |
+| 6 Vine structure | the fitted vine on the chosen date, tree by tree; hover an edge for family, tau and tail dependence | `run_rolling.py` |
+| 7 Structural-change score | one of four scores, with the periods above an adjustable threshold shaded | `detect_changes.py` |
+| 8 Portfolio risk | rolling 99% Expected Shortfall or VaR for the vine copula and three benchmarks, plus the VaR backtest | `compute_risk.py` |
+
+Charts are interactive (hover for exact values) and follow the light or dark theme of
+Streamlit. "Show data tables" in the sidebar lists the numbers behind every chart. The threshold
+in panel 7 only shades periods on screen: it is a visual aid and not a significance
+level, so use the p-values in `change_scan.parquet` (section 6) for decisions.
+
+---
+
+## 8. Glossary
 
 | Term | Meaning |
 |------|---------|
@@ -422,7 +456,7 @@ On the real 8-asset data (window 250, 2006-2026), with the calibrated permutatio
 
 ---
 
-## 8. Status
+## 9. Status
 
 | Phase | Content | State |
 |------|---------|-------|
@@ -434,10 +468,10 @@ On the real 8-asset data (window 250, 2006-2026), with the calibrated permutatio
 | 6 | Structural change detection | done |
 | 7 | Portfolio risk (VaR, ES) | done |
 | 8 | Synthetic validation study | done |
-| 9 | Streamlit dashboard | next |
-| 10 | Live (replay) simulation | planned |
+| 9 | Streamlit dashboard | done |
+| 10 | Live (replay) simulation | next |
 
-## 9. Limitations (to be extended)
+## 10. Limitations (to be extended)
 
 - A rolling window describes *local* history; financial dependence is not stationary.
 - Different vine structures can have nearly identical likelihoods, so structure changes
