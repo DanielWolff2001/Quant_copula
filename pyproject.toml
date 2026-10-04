@@ -24,6 +24,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest"]
 dashboard = ["streamlit", "plotly"]
+notebooks = ["jupyterlab"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

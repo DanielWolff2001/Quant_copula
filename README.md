@@ -12,8 +12,8 @@ This is a research project, not a trading strategy.
 
 > **Status: work in progress.** All ten phases are implemented (data, marginals, static
 > vine, rolling estimation, dependence monitoring, structural change detection,
-> portfolio risk, synthetic validation study, dashboard, simulated live monitor).
-> The demonstration notebooks suggested in the project brief are still to come.
+> portfolio risk, synthetic validation study, dashboard, simulated live monitor),
+> and six demonstration notebooks show how to use them (see section 5).
 > See [Status](#10-status).
 
 ---
@@ -60,8 +60,9 @@ python3.12 -m venv .venv
 #    You must do this in every new terminal window.
 source .venv/bin/activate
 
-# 4. Install this project and its dependencies (explained in section 4)
-pip install -e ".[dev]"
+# 4. Install this project and its dependencies (what the brackets mean is explained below).
+#    "dev" adds the test tool, "dashboard" adds Streamlit, "notebooks" adds JupyterLab.
+pip install -e ".[dev,dashboard,notebooks]"
 
 # 5. Check that everything works: runs the automated tests
 pytest
@@ -130,6 +131,7 @@ Quant_copula/
 │       ├── copula.py          VineCopula: fits a vine and summarises it.
 │       ├── dependence.py      Pairwise tau/Spearman/Pearson and the monitoring metrics.
 │       ├── rolling.py         RollingVineModel: the rolling-window machinery.
+│       ├── pipeline.py        Small helpers that chain the data steps (used by the notebooks).
 │       ├── monitor.py         LiveMonitor: sequential monitoring with alerts (simulated live).
 │       ├── portfolio.py       Loss, VaR, Expected Shortfall from simulated scenarios.
 │       ├── change_detection.py Structural change scores and the calibrated permutation test.
@@ -151,18 +153,17 @@ Quant_copula/
 │   ├── run_validation.py  The synthetic validation study (about 30 minutes).
 │   └── plot_validation.py Figure for the validation study.
 │
+├── notebooks/             Six Jupyter notebooks that teach the package step by step (see section 5).
+│
 ├── tests/                 Automated checks of the maths and the code (run with pytest).
 │
 ├── data/
 │   ├── cache/             Downloaded prices (auto-created, not in git).
 │   └── results/           Output of the rolling runs (auto-created, not in git).
 │
-├── reports/
-│   ├── figures/           Saved figures and example outputs.
-│   └── validation/        Result tables of the synthetic validation study (CSV).
-│
-└── (planned)
-    └── notebooks/         Jupyter notebooks that demonstrate the package.
+└── reports/
+    ├── figures/           Saved figures and example outputs.
+    └── validation/        Result tables of the synthetic validation study (CSV).
 ```
 
 Planned modules that do not exist yet: `diagnostics.py`.
@@ -182,17 +183,17 @@ itself. Ours says:
 
 - the project's name (`vine-risk`) and version;
 - which other packages it needs (`dependencies`: numpy, pandas, pyvinecopulib, ...);
-- optional extras: `dev` (adds `pytest` for testing) and `dashboard` (adds Streamlit);
+- optional extras: `dev` (adds `pytest` for testing), `dashboard` (adds Streamlit and Plotly) and `notebooks` (adds JupyterLab);
 - where the code lives (`src/`), and where the tests are.
 
-When you run `pip install -e ".[dev]"`, pip reads this file, installs all the listed
+When you run `pip install -e ".[dev,dashboard,notebooks]"`, pip reads this file, installs all the listed
 packages, and registers `vine_risk` so it can be imported from anywhere in this
 environment.
 
 - `.` means "the project in the current folder".
 - `-e` ("editable") means pip links to your files instead of copying them, so edits
   you make to the code take effect immediately without reinstalling.
-- `[dev]` selects the extra group of packages called `dev`.
+- `[dev,dashboard,notebooks]` selects the extra groups of packages with these names (you can list any subset).
 
 ### What is `configs/default.yaml`?
 
@@ -269,7 +270,35 @@ Design choices worth knowing:
 
 ---
 
-## 5. Using the package from Python
+## 5. Learn by doing: the notebooks
+
+The quickest way to see what the package does is to run the notebooks in `notebooks/`. A *notebook* is a document in which
+text and code alternate; you run the code cell by cell and see the tables and plots appear below it.
+
+```bash
+pip install -e ".[notebooks]"      # once, adds JupyterLab (skip if you installed all extras in section 2)
+jupyter lab                        # opens a browser; open a notebook from the notebooks/ folder
+```
+
+Run them in order. Each starts with what it teaches and what it needs, and every code cell has been executed, so you can also
+read them on GitHub without running anything.
+
+| Notebook | You learn | Needs | Time |
+|----------|-----------|-------|------|
+| `01_data_exploration` | settings, prices, cleaning, log returns, why returns are not normal; using your own tickers | internet once (prices are cached) | 1 min |
+| `02_static_vine` | marginal transform, fitting one vine, reading families, tau and tail dependence, tree plots, simulation, model options | notebook 1 | 1 min |
+| `03_rolling_vine` | the rolling window, what is stored per date, stepwise versus batch, window-length sensitivity; **creates a small demo run** in `data/results/demo/` | notebook 2 | 2-3 min |
+| `04_dependence_changes` | dependence over time, which pairs moved, structure churn, why one-day comparisons fail, the permutation test, alerts, simulated experiments with a known answer | demo run or full run | 2 min |
+| `05_portfolio_risk` | VaR and Expected Shortfall, vine versus simpler models, your own weights, the backtest, dependence versus volatility | demo run or full run | 1 min |
+| `06_live_monitor` | feeding prices one day at a time, resuming from saved state, checking against the batch run, the alert rule | demo run or full run | 1 min |
+
+Notebooks 4 to 6 use the full 20-year run (`data/results/w250/`) if it exists and the small demo run otherwise, so they work
+either way; with the full run the plots cover 2006-2026. To make the full run: `python scripts/run_rolling.py` (about an
+hour), then `compute_metrics.py`, `detect_changes.py` and `compute_risk.py` (section 6 to 8).
+
+---
+
+### Using the package from Python (short version)
 
 ```python
 from vine_risk.config import load_config

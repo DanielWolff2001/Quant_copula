@@ -75,7 +75,8 @@ def plot_vine_tree(result, tree: int = 1, ax=None):
         g.add_edge(u, v, text=f"{p.family}\n{p.tau:.2f}")
     if ax is None:
         _, ax = plt.subplots(figsize=(6, 5))
-    pos = nx.circular_layout(g)
+    # force-directed layout puts hubs in the centre; a circle is clearer for very small trees
+    pos = nx.kamada_kawai_layout(g) if len(nodes) > 3 else nx.circular_layout(g)
     nx.draw_networkx(g, pos, ax=ax, node_color="#cfe3f5", node_size=1100, font_size=8)
     nx.draw_networkx_edge_labels(g, pos, ax=ax, font_size=7,
                                  edge_labels={(u, v): d["text"] for u, v, d in g.edges(data=True)})

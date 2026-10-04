@@ -228,3 +228,15 @@ def test_app_degrades_gracefully_without_optional_files(small_run, monkeypatch, 
 def test_app_shows_error_for_missing_run(small_run, monkeypatch, tmp_path):
     at = _app(small_run, monkeypatch, tmp_path / "does-not-exist").run()
     assert not at.exception and any("run_rolling" in e.value for e in at.error)
+
+
+def test_matplotlib_vine_tree_draws_small_and_larger_trees():
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from vine_risk.visualization import plot_vine_tree
+    res = _result("2020-01-03")
+    for tree in (1, 2):
+        fig = plot_vine_tree(res, tree)
+        assert len(fig.axes) == 1
+        plt.close(fig)
