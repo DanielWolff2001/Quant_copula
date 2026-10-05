@@ -69,7 +69,7 @@ class Config:
 
 
 def load_config(path: str | Path) -> Config:
-    """Load a :class:`Config` from a YAML file; missing keys fall back to defaults."""
+    """Load a `Config` from a YAML file; missing keys fall back to defaults."""
     p = Path(path)
     if not p.is_file():
         raise FileNotFoundError(f"Config file not found: {p}")

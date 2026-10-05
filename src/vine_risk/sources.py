@@ -3,8 +3,8 @@
 A *source* is anything with ``fetch(tickers, start, end)`` returning adjusted daily close prices
 (index = dates, one column per ticker). Two are built in:
 
-* :class:`YahooSource` - Yahoo Finance through ``yfinance`` (the default);
-* :class:`CsvSource` - your own files, so any vendor's data can be used: a wide CSV (``Date`` column
+* `YahooSource` - Yahoo Finance through ``yfinance`` (the default);
+* `CsvSource` - your own files, so any vendor's data can be used: a wide CSV (``Date`` column
   plus one column per ticker) or a folder with one ``<TICKER>.csv`` per ticker.
 
 Select one in the config (``data: source: csv`` and ``csv_path: ...``) or pass an object to the
@@ -103,7 +103,7 @@ class CsvSource:
 
 
 def make_source(data_cfg) -> PriceSource:
-    """The source selected by a :class:`~vine_risk.config.DataConfig`."""
+    """The source selected by a `vine_risk.config.DataConfig`."""
     kind = getattr(data_cfg, "source", "yahoo")
     if kind == "yahoo":
         return YahooSource()

@@ -6,21 +6,21 @@ alert only when it exceeds a configurable threshold.
 
 Detectors implemented (simplest first):
 
-1. :func:`frobenius_change` - Frobenius distance between pairwise dependence matrices
+1. `frobenius_change` - Frobenius distance between pairwise dependence matrices
    ``||T_t - T_{t-lag}||_F`` (the PDF's ``S_t``);
-2. :func:`model_distance` - the same distance on the model-implied Kendall's tau and on
+2. `model_distance` - the same distance on the model-implied Kendall's tau and on
    the lower/upper tail-dependence matrices, so it also sees tail-only changes;
-3. :func:`rolling_zscore` - how unusual a series is compared with its own past;
-4. :func:`cusum` - a one-sided CUSUM accumulating persistent positive deviations;
-5. :func:`change_scan` - a permutation test between two disjoint windows, which gives
+3. `rolling_zscore` - how unusual a series is compared with its own past;
+4. `cusum` - a one-sided CUSUM accumulating persistent positive deviations;
+5. `change_scan` - a permutation test between two disjoint windows, which gives
    calibrated p-values (the recommended detector).
 
 ``lag`` is counted in *fits*. With ``lag = 1`` consecutive overlapping windows are
 compared (they share all but one observation, so the score is almost pure estimation
 noise and cannot see a regime change); ``lag = window / refit_frequency`` compares two
-disjoint windows (see :func:`default_lag`).
+disjoint windows (see `default_lag`).
 
-Calibration (measured in the validation study, :mod:`vine_risk.validation`): the distance
+Calibration (measured in the validation study, `vine_risk.validation`): the distance
 scores have no built-in null distribution, so an alert threshold has to be calibrated by
 simulating data without change. A threshold calibrated on constant-dependence data is too
 low once volatility clusters (false alarms rise from 1% to 3-10%), so calibrate on the
@@ -50,7 +50,7 @@ def frobenius_change(pairs: pd.DataFrame, lag: int = 1) -> pd.Series:
     """``||M_t - M_{t-lag}||_F`` for symmetric matrices stored as pair columns.
 
     ``pairs`` has one column per asset pair ``i < j`` (see
-    :func:`vine_risk.dependence.pairwise_series`). The matrices have a zero diagonal
+    `vine_risk.dependence.pairwise_series`). The matrices have a zero diagonal
     and are symmetric, so ``||.||_F = sqrt(2 * sum_{i<j} diff^2)``.
     """
     if lag < 1:
@@ -141,7 +141,7 @@ def structural_change_scores(
     ``baseline`` is counted in fits. The ``z_*``/``cusum`` columns are secondary
     diagnostics: the z-score is close to calibrated but has little power (the baseline
     absorbs the shift), and the CUSUM never resets, so it keeps alarming after a change.
-    Use a null-calibrated threshold on the distances, or :func:`change_scan`, to decide.
+    Use a null-calibrated threshold on the distances, or `change_scan`, to decide.
     """
     tau = pairwise_series(results, "tau")
     out = pd.DataFrame({"s_tau": frobenius_change(tau, lag)})
@@ -287,7 +287,7 @@ def change_scan(
     block: int = 1, after: pd.Timestamp | None = None,
     progress: Callable[[int, int], None] | None = None,
 ) -> pd.DataFrame:
-    """Run :func:`two_window_change_test` along the history.
+    """Run `two_window_change_test` along the history.
 
     At each scan date ``t`` the window ``(t-window, t]`` is compared with the preceding
     window ``(t-2*window, t-window]``; only data up to ``t`` is used. Returns

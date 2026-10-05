@@ -1,7 +1,7 @@
 """Portfolio risk (VaR, Expected Shortfall) from fitted vine copulas.
 
 For a window ending at ``t`` the pipeline is: rebuild the fitted vine from its stored
-:class:`~vine_risk.copula.VineFitResult`, draw uniform scenarios from it, map them back
+`vine_risk.copula.VineFitResult`, draw uniform scenarios from it, map them back
 to returns through the window's empirical marginals, form portfolio losses
 ``L = -w'r`` and read off ``VaR_alpha`` and ``ES_alpha = E[L | L >= VaR_alpha]``.
 

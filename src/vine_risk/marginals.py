@@ -1,7 +1,7 @@
 """Marginal models: map returns to (approximately) uniform pseudo-observations.
 
 The copula engine only consumes the uniform output, so a parametric marginal
-(Student-t, skewed, GARCH, ...) can be added by subclassing :class:`Marginal`.
+(Student-t, skewed, GARCH, ...) can be added by subclassing `Marginal`.
 """
 from __future__ import annotations
 

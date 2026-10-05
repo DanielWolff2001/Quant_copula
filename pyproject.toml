@@ -29,6 +29,7 @@ vine-risk = "vine_risk.cli:main"
 dev = ["pytest"]
 dashboard = ["streamlit", "plotly"]
 notebooks = ["jupyterlab"]
+docs = ["mkdocs>=1.6,<2", "mkdocs-material", "mkdocstrings[python]"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

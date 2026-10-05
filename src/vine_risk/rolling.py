@@ -2,8 +2,8 @@
 
 Two layers are kept separate:
 
-* **data update** - :meth:`RollingVineModel.push` appends one observation to the window;
-* **model refit** - :meth:`RollingVineModel.refit`, triggered by :meth:`should_refit`
+* **data update** - `RollingVineModel.push` appends one observation to the window;
+* **model refit** - `RollingVineModel.refit`, triggered by `should_refit`
   according to ``refit_frequency`` (1 = refit on every new observation).
 
 ``step`` combines them for sequential/"live" use and ``run`` replays a whole history
@@ -66,8 +66,8 @@ class RollingVineModel:
     Args:
         window: number of observations per fit.
         refit_frequency: refit every this many new observations (1 = daily).
-        vine_kwargs: keyword arguments for :class:`VineCopula`.
-        marginal_factory: zero-argument callable returning a fresh :class:`Marginal`.
+        vine_kwargs: keyword arguments for `VineCopula`.
+        marginal_factory: zero-argument callable returning a fresh `Marginal`.
     """
 
     def __init__(
@@ -172,7 +172,7 @@ class RollingVineModel:
         checkpoint: str | Path | None = None,
         progress: Callable[[int, int], None] | None = None,
     ) -> list[VineFitResult]:
-        """Fit the whole history. Equivalent to calling :meth:`step` row by row.
+        """Fit the whole history. Equivalent to calling `step` row by row.
 
         Args:
             returns: T x d return matrix with a DatetimeIndex.

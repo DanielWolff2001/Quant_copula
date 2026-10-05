@@ -87,7 +87,7 @@ def cmd_run(a: argparse.Namespace) -> int:
 def cmd_update(a: argparse.Namespace) -> int:
     from vine_risk.update import update_run
 
-    cfg = load_config(a.config)
+    cfg = with_rolling(load_config(a.config), window=a.window, refit_frequency=a.refit_frequency)
     overrides = {k: v for k, v in dict(alpha=a.alpha, enter_ratio=a.enter_ratio, exit_ratio=a.exit_ratio).items()
                  if v is not None}
     report = update_run(cfg, a.run_dir or default_run_dir(cfg), threads=a.threads, n_jobs=a.n_jobs,
@@ -137,7 +137,8 @@ def cmd_schedule(a: argparse.Namespace) -> int:
     import shutil
 
     exe = shutil.which("vine-risk") or f"{sys.executable} -m vine_risk"
-    cmd = f"{exe} update --config {Path(a.config).resolve()}" + (f" --run-dir {Path(a.run_dir).resolve()}" if a.run_dir else "")
+    cmd = (f"{exe} update --config {Path(a.config).resolve()}" + (f" --run-dir {Path(a.run_dir).resolve()}" if a.run_dir else "")
+           + (f" --window {a.window}" if a.window else "") + (f" --refit-frequency {a.refit_frequency}" if a.refit_frequency else ""))
     print(render_schedule(a.kind, cmd, Path.cwd(), a.at))
     return 0
 
@@ -145,7 +146,7 @@ def cmd_schedule(a: argparse.Namespace) -> int:
 def cmd_replay(a: argparse.Namespace) -> int:
     from vine_risk.replay import run_replay
 
-    cfg = load_config(a.config)
+    cfg = with_rolling(load_config(a.config), window=a.window, refit_frequency=a.refit_frequency)
     run_replay(cfg, a.run_dir or default_run_dir(cfg), days=a.days, start=a.start, end=a.end, delay=a.delay,
                scan_step=a.scan_step, n_perm=a.n_perm, risk_every=a.risk_every, threads=a.threads,
                verify=not a.no_verify, out_dir=a.out)
@@ -253,6 +254,8 @@ def build_parser() -> argparse.ArgumentParser:
     u.add_argument("--run-dir", help="results folder to update (default data/results/w<window>)")
     u.add_argument("--dry-run", action="store_true", help="fetch and check the prices, report what would be done, change nothing")
     u.add_argument("--force", action="store_true", help="skip the safety checks on settings and data (not recommended)")
+    u.add_argument("--window", type=int, help="override rolling.window (must match the run)")
+    u.add_argument("--refit-frequency", type=int, help="override rolling.refit_frequency (must match the run)")
     u.add_argument("--threads", type=int, default=4, help="threads of the vine fitter")
     u.add_argument("--n-jobs", type=int, help="worker processes for the table updates")
     u.add_argument("--scan-step", type=int, default=5)
@@ -266,9 +269,13 @@ def build_parser() -> argparse.ArgumentParser:
     sc.add_argument("--kind", choices=["cron", "launchd", "systemd"], required=True)
     sc.add_argument("--at", default="23:30", help="local time, HH:MM (default %(default)s)")
     sc.add_argument("--run-dir", help="results folder to update")
+    sc.add_argument("--window", type=int, help="add --window to the scheduled command")
+    sc.add_argument("--refit-frequency", type=int, help="add --refit-frequency to the scheduled command")
 
     pl = add("replay", cmd_replay, "simulated live monitoring: replay recent history day by day")
     pl.add_argument("--run-dir", help="results folder to resume from")
+    pl.add_argument("--window", type=int, help="override rolling.window (must match the run)")
+    pl.add_argument("--refit-frequency", type=int, help="override rolling.refit_frequency (must match the run)")
     pl.add_argument("--days", type=int, default=120, help="replay the last N observations")
     pl.add_argument("--start", help="first replayed date (overrides --days)")
     pl.add_argument("--end", help="last replayed date")

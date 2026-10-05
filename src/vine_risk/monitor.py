@@ -7,9 +7,9 @@ Workflow per observation (PDF section 14)::
         -> structural-change scores (+ permutation test) -> alert state -> output
 
 The monitor only ever sees data up to the current date. It is built from the same pieces
-as the batch pipeline (:class:`~vine_risk.rolling.RollingVineModel`,
-:func:`~vine_risk.dependence.dependence_metrics`, :func:`~vine_risk.change_detection.change_scan`'s
-test, :func:`~vine_risk.portfolio.window_risk`), so replaying history through it reproduces
+as the batch pipeline (`vine_risk.rolling.RollingVineModel`,
+`vine_risk.dependence.dependence_metrics`, `vine_risk.change_detection.change_scan`'s
+test, `vine_risk.portfolio.window_risk`), so replaying history through it reproduces
 the batch results exactly; ``tests/test_monitor.py`` checks this.
 
 Alerts come from the permutation test between the last two windows (calibrated by
@@ -159,9 +159,9 @@ class LiveMonitor:
 
     Args:
         assets: asset names (column order of every observation).
-        config: :class:`MonitorConfig`.
-        sinks: callables invoked with every :class:`MonitorRecord`.
-        on_fit: optional callable invoked with every new :class:`~vine_risk.copula.VineFitResult` right
+        config: `MonitorConfig`.
+        sinks: callables invoked with every `MonitorRecord`.
+        on_fit: optional callable invoked with every new `vine_risk.copula.VineFitResult` right
             after it is made (e.g. to append it to a checkpoint file).
     """
 
@@ -214,7 +214,7 @@ class LiveMonitor:
         return self.on_return(date, np.log(prices / prev))
 
     def set_last_price(self, prices: pd.Series) -> None:
-        """Declare the most recent price (needed before the first :meth:`on_prices` after :meth:`prime`)."""
+        """Declare the most recent price (needed before the first `on_prices` after `prime`)."""
         self._last_price = prices.copy()
 
     def on_return(self, date: pd.Timestamp, row: pd.Series) -> MonitorRecord:

@@ -64,7 +64,7 @@ def vine_tree_graph(result, tree: int = 1):
 
 
 def plot_vine_tree(result, tree: int = 1, ax=None):
-    """Draw one tree of the fitted vine (see :func:`vine_tree_graph`); edges are labelled
+    """Draw one tree of the fitted vine (see `vine_tree_graph`); edges are labelled
     with the pair-copula family and Kendall's tau."""
     import networkx as nx
 

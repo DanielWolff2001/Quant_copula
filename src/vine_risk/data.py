@@ -32,7 +32,7 @@ def download_prices(
 
     Cached results make repeated runs reproducible and offline-capable. The cache is **not** updated
     by itself: pass ``refresh=True`` to download again and overwrite it (a daily update does this).
-    Sources that read local files (:class:`~vine_risk.sources.CsvSource`) are never cached.
+    Sources that read local files (`vine_risk.sources.CsvSource`) are never cached.
     Returns a DataFrame indexed by date with one column per ticker.
     """
     source = source or YahooSource()

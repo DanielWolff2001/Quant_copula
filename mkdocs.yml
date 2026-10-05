@@ -1,0 +1,90 @@
+site_name: Dynamic Vine Copula Risk Monitoring
+site_description: A quantitative risk framework for estimating and monitoring time-varying dependence structures with rolling vine copulas.
+site_url: https://danielwolff2001.github.io/Quant_copula/
+repo_url: https://github.com/DanielWolff2001/Quant_copula
+repo_name: DanielWolff2001/Quant_copula
+edit_uri: edit/main/docs/
+strict: true
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle: {icon: material/weather-night, name: Switch to dark mode}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle: {icon: material/weather-sunny, name: Switch to light mode}
+  features:
+    - navigation.sections
+    - navigation.top
+    - toc.follow
+    - content.code.copy
+    - search.suggest
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Concepts: concepts.md
+  - Guides:
+      - Command line: cli.md
+      - Daily updates: daily-update.md
+      - Notebooks: notebooks.md
+      - Dashboard: dashboard.md
+      - Live monitor: live-monitor.md
+  - Method:
+      - How it fits together: architecture.md
+      - Detecting structural change: methodology.md
+      - Validation study: validation.md
+      - Reproducibility: reproducibility.md
+  - Reference:
+      - Configuration: configuration.md
+      - API:
+          - api/index.md
+          - Data and marginals: api/data.md
+          - Models and rolling fits: api/models.md
+          - Change detection, risk, validation: api/analysis.md
+          - Operations: api/operations.md
+          - Dashboard and plots: api/dashboard.md
+      - Glossary: glossary.md
+      - Limitations: limitations.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - admonition
+  - tables
+  - attr_list
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.snippets:
+      base_path: ["."]
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: false
+            show_source: false
+            members_order: source
+            heading_level: 3
+            merge_init_into_class: true
+            show_signature_annotations: false
+            separate_signature: true

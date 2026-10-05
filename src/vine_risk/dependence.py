@@ -59,7 +59,7 @@ def pairwise_changes(results: Sequence["VineFitResult"], column: str = "tau") ->
 
 
 def average_absolute_tau(tau: pd.DataFrame) -> pd.Series:
-    """``D_t = 2 / (d (d-1)) * sum_{i<j} |tau_ij,t|`` from a :func:`pairwise_series` frame."""
+    """``D_t = 2 / (d (d-1)) * sum_{i<j} |tau_ij,t|`` from a `pairwise_series` frame."""
     return tau.abs().mean(axis=1).rename("d_t")
 
 
@@ -113,7 +113,7 @@ def dependence_metrics(results: Sequence["VineFitResult"]) -> pd.DataFrame:
     ``mean_spearman``, ``mean_pearson``, ``mean_model_tau``, ``mean_lower_tail_q``,
     ``mean_upper_tail_q``, ``tail_asymmetry`` (lower minus upper), and the change
     between consecutive fits ``mean_abs_dtau`` / ``max_abs_dtau``.
-    Level 2: the columns of :func:`structure_changes` plus model diagnostics
+    Level 2: the columns of `structure_changes` plus model diagnostics
     (``loglik``, ``aic``, ``bic``, ``n_params``, ``status``).
     """
     if not results:

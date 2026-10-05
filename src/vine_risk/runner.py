@@ -2,10 +2,10 @@
 
 Steps, in order (each reads what the previous ones wrote into the *run folder*):
 
-1. :func:`fit_rolling`     - rolling vine fits           -> ``checkpoint.jsonl`` + result tables
-2. :func:`compute_metrics` - dependence metrics          -> ``dependence_metrics.parquet``, ``pairwise_*.parquet``
-3. :func:`detect_changes`  - change scores + scan        -> ``structural_change_scores.parquet``, ``change_scan.parquet``
-4. :func:`compute_risk`    - rolling VaR / ES + backtest -> ``portfolio_risk.parquet``, ``var_backtest.csv``
+1. `fit_rolling`     - rolling vine fits           -> ``checkpoint.jsonl`` + result tables
+2. `compute_metrics` - dependence metrics          -> ``dependence_metrics.parquet``, ``pairwise_*.parquet``
+3. `detect_changes`  - change scores + scan        -> ``structural_change_scores.parquet``, ``change_scan.parquet``
+4. `compute_risk`    - rolling VaR / ES + backtest -> ``portfolio_risk.parquet``, ``var_backtest.csv``
 
 Every step is **incremental**: it extends what is already in the run folder (new fits, new scan
 dates, new risk dates) instead of recomputing, which makes a daily update cheap. A

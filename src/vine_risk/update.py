@@ -4,7 +4,7 @@
 
 1. fetch the latest prices from the configured source and sanity-check them;
 2. check that the history behind the stored fits is unchanged (prices can be revised by the vendor);
-3. feed every new day through a :class:`~vine_risk.monitor.LiveMonitor` that resumes from the saved
+3. feed every new day through a `vine_risk.monitor.LiveMonitor` that resumes from the saved
    fits - each new fit is appended to the checkpoint, alerts are logged;
 4. bring the result tables (metrics, change scan, risk, backtest) up to date, incrementally.
 
@@ -66,7 +66,7 @@ def update_run(
     """Bring ``run_dir`` up to date with the latest prices (see the module docstring).
 
     ``dry_run`` fetches and checks but writes nothing. ``force`` skips the settings/history checks
-    (not recommended). ``monitor_overrides`` replaces fields of :class:`MonitorConfig` (``alpha``,
+    (not recommended). ``monitor_overrides`` replaces fields of `MonitorConfig` (``alpha``,
     ``enter_ratio``, ``exit_ratio``, ...). Raises ``ManifestMismatch`` if the stored run is
     incompatible with the settings or the data, ``ValueError`` if the new prices fail validation.
     """

@@ -1,4 +1,4 @@
-"""Simulated live monitoring: replay history through a :class:`~vine_risk.monitor.LiveMonitor`."""
+"""Simulated live monitoring: replay history through a `vine_risk.monitor.LiveMonitor`."""
 from __future__ import annotations
 
 import time

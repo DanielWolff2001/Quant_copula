@@ -1,7 +1,7 @@
 """Static vine copula: a thin wrapper around ``pyvinecopulib``.
 
 ``VineCopula.fit`` takes pseudo-observations (uniforms) and ``summary`` returns a
-plain, serialisable :class:`VineFitResult`; the fitted C++ object is never stored
+plain, serialisable `VineFitResult`; the fitted C++ object is never stored
 in results.
 """
 from __future__ import annotations
@@ -129,9 +129,9 @@ class VineCopula:
         tree_criterion: edge weight for the tree structure (default Kendall's tau).
         num_threads: threads used by the C++ fitter.
         tail_simulations: number of Sobol points used to compute the model-implied
-            pairwise dependence in :meth:`summary` (0 disables it; use a power of 2).
+            pairwise dependence in `summary` (0 disables it; use a power of 2).
         tail_level: ``q`` of the finite-level tail coefficients, see
-            :meth:`implied_pairwise`.
+            `implied_pairwise`.
         seed: seed of the Sobol sequence. It is the same for every fit, so differences
             between windows are not caused by simulation noise.
     """
@@ -177,7 +177,7 @@ class VineCopula:
         """Fit to pseudo-observations ``u`` (T x d, strictly inside (0, 1)).
 
         ``returns`` (same shape/columns) is only used to report Pearson correlation.
-        Raises :class:`VineFitError` if the fit fails.
+        Raises `VineFitError` if the fit fails.
         """
         _validate_uniform(u)
         try:

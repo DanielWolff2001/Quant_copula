@@ -21,7 +21,7 @@ zones relative to the change point ``c``:
 Alerts in ``pre`` and ``post`` (and everywhere in the no-change experiments) are false
 alarms; alerts in ``change`` are detections.
 
-Also provided: :func:`estimation_accuracy`, how well a fitted vine recovers tail
+Also provided: `estimation_accuracy`, how well a fitted vine recovers tail
 dependence and portfolio VaR/ES when the true copula is known.
 """
 from __future__ import annotations

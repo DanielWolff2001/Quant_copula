@@ -6,7 +6,7 @@ fingerprint of the data. It serves two purposes:
 
 * **traceability** - results can be tied to the exact code, settings and data that made them;
 * **safety when resuming** - a checkpoint made with a window of 250 days must not be extended
-  with a window of 125, or with different prices; :func:`check_resume` refuses to mix them.
+  with a window of 125, or with different prices; `check_resume` refuses to mix them.
 """
 from __future__ import annotations
 
@@ -148,7 +148,7 @@ def check_resume(run_dir: str | Path, cfg: Config) -> list[str]:
     """Check that ``cfg`` is compatible with the fits already stored in ``run_dir``.
 
     Returns ``[]`` if there is nothing to compare or all fit settings agree; raises
-    :class:`ManifestMismatch` listing every difference otherwise.
+    `ManifestMismatch` listing every difference otherwise.
     """
     old = read_manifest(run_dir)
     if old is None:
@@ -170,7 +170,7 @@ def verify_history_unchanged(result: VineFitResult, returns: pd.DataFrame, tol: 
     Recomputes the empirical Kendall's tau of the stored fit's window from ``returns`` and
     compares with the stored values. Prices from a data vendor can be revised (a split or
     dividend adjustment rescales history), which would make stored fits stale.
-    Raises :class:`ManifestMismatch` on a difference.
+    Raises `ManifestMismatch` on a difference.
     """
     ts = pd.Timestamp(result.timestamp)
     if ts not in returns.index:

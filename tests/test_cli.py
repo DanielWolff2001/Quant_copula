@@ -15,15 +15,14 @@ from vine_risk.synthetic import Regime, simulate_regimes
 
 @pytest.fixture(scope="module")
 def project(tmp_path_factory):
-    """A tiny project: a price cache for 3 synthetic assets and a config pointing at it."""
+    """A tiny project: a CSV of prices for 3 synthetic assets and a config pointing at it."""
     root = tmp_path_factory.mktemp("proj")
     r = simulate_regimes([Regime(140, 0.2), Regime(120, 0.85)], n_assets=3, seed=4)
-    cache = root / "cache"
-    cache.mkdir()
-    (100 * np.exp(r.cumsum())).to_parquet(cache / "prices_X1_X2_X3_2010-01-01_latest.parquet")
+    csv = root / "prices.csv"
+    (100 * np.exp(r.cumsum())).to_csv(csv)
     cfg = root / "config.yaml"
     cfg.write_text(yaml.safe_dump({
-        "assets": ["X1", "X2", "X3"], "data": {"start": "2010-01-01", "cache_dir": str(cache)},
+        "assets": ["X1", "X2", "X3"], "data": {"start": "2010-01-01", "source": "csv", "csv_path": str(csv)},
         "rolling": {"window": 60, "refit_frequency": 5, "truncation_level": 2, "n_jobs": 1, "tail_simulations": 1024},
         "risk": {"simulations": 512, "seed": 3}}))
     return root, cfg
@@ -106,3 +105,17 @@ def test_parser_and_entry_points():
     assert find_dashboard_app().name == "app.py"
     out = subprocess.run([sys.executable, "-m", "vine_risk", "--version"], capture_output=True, text=True)
     assert out.returncode == 0 and __version__ in out.stdout
+
+
+def test_update_and_replay_accept_the_same_overrides_as_run(project, tmp_path, capsys):
+    root, cfg = project
+    d = tmp_path / "w80"
+    # a run made with command-line overrides must be updatable with the same overrides, and not without them
+    assert main(["run", "--config", str(cfg), "--run-dir", str(d), "--window", "80", "--refit-frequency", "10",
+                 "--n-perm", "49", "--scan-step", "10"]) == 0
+    assert main(["update", "--config", str(cfg), "--run-dir", str(d), "--dry-run"]) == 2
+    assert "window: stored 80, now 60" in capsys.readouterr().err
+    assert main(["update", "--config", str(cfg), "--run-dir", str(d), "--dry-run", "--window", "80",
+                 "--refit-frequency", "10"]) == 0
+    assert main(["schedule", "--config", str(cfg), "--kind", "cron", "--window", "80", "--refit-frequency", "10"]) == 0
+    assert "--window 80 --refit-frequency 10" in capsys.readouterr().out

@@ -1,7 +1,7 @@
 """Figure for the synthetic validation study (reads the raw tables of run_validation.py).
 
 Usage: python scripts/plot_validation.py [--raw data/results/validation]
-       [--out reports/figures/phase8_detection.png] [--window 250]
+       [--out docs/assets/detection.png] [--window 250]
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ NULL = ("A_vol", "no change (clustered volatility)", "#898883")
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--raw", default="data/results/validation")
-    ap.add_argument("--out", default="reports/figures/phase8_detection.png")
+    ap.add_argument("--out", default="docs/assets/detection.png")
     ap.add_argument("--window", type=int, default=250)
     a = ap.parse_args()
     exps = standard_experiments()
