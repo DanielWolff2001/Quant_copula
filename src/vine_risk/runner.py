@@ -167,8 +167,11 @@ def compute_risk(cfg: Config, returns: pd.DataFrame, run_dir: str | Path, *, ste
     old = read_manifest(run_dir)
     same = old is not None and old.get("steps", {}).get("risk", {}).get("settings") == settings
     stored = _read_table(path) if same and path.is_file() else None
+    model = RollingVineModel.from_config(cfg)
     new = rolling_risk(results, returns, w, cfg.risk.confidence_level, cfg.risk.simulations, cfg.risk.seed, step,
-                       n_jobs or cfg.rolling.n_jobs, after=None if stored is None else stored.index.max())
+                       n_jobs or cfg.rolling.n_jobs, after=None if stored is None else stored.index.max(),
+                       marginal_factory=None if cfg.rolling.marginal == "empirical" else model.marginal_factory,
+                       lookback=model.lookback)
     risk = pd.concat([stored, new]) if stored is not None and not new.empty else (stored if stored is not None else new)
     risk.to_parquet(path)
     backtest = backtest_var(risk, returns, w, cfg.risk.confidence_level)

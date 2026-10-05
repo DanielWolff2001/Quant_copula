@@ -64,6 +64,8 @@ class RiskConfig:
     simulations: int = 16384  # Sobol points per window; a power of 2 works best
     seed: int = 42
     weights: list[float] | None = None  # None = equal weights across the assets
+    # named portfolios for the model comparison: {name: None (equal weights) | {ticker: weight}}
+    portfolios: dict[str, dict[str, float] | None] | None = None
 
     def __post_init__(self) -> None:
         if not 0 < self.confidence_level < 1:

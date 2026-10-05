@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 from concurrent.futures import ProcessPoolExecutor
-from typing import Sequence
+from typing import Callable, Sequence
 
 import numpy as np
 import pandas as pd
@@ -22,7 +22,7 @@ import pyvinecopulib as pv
 from scipy import stats
 
 from vine_risk.copula import VineFitResult
-from vine_risk.marginals import EmpiricalMarginal
+from vine_risk.marginals import EmpiricalMarginal, Marginal
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +97,57 @@ def _gaussian_copula_uniforms(u_window: np.ndarray, sobol: np.ndarray) -> np.nda
     return stats.norm.cdf(stats.norm.ppf(sobol) @ chol.T)
 
 
+def scenario_returns(
+    result: VineFitResult,
+    window_returns: pd.DataFrame,
+    *,
+    marginal: Marginal | None = None,
+    n_sims: int = 2 ** 14,
+    seed: int = 0,
+) -> dict[str, np.ndarray]:
+    """Asset-return scenarios (``n_sims`` x assets) under the vine, a Gaussian copula and independence.
+
+    The scenarios of all three models are built from the *same* Sobol points and mapped to returns
+    through the same ``marginal``, so differences between models come from dependence only.
+    ``marginal`` is a fitted `Marginal` whose ``transform`` accepts ``window_returns`` (default: rank
+    marginals fitted on the window). With a GARCH marginal the scenarios are forecasts for the next day
+    given today's volatility; with rank marginals they follow the window's own distribution.
+    """
+    if list(window_returns.columns) != list(result.assets):
+        raise ValueError("window_returns columns do not match the fit.")
+    marg = marginal if marginal is not None else EmpiricalMarginal().fit(window_returns)
+    u_win = marg.transform(window_returns).to_numpy()
+    sobol = pv.utils.sobol(n_sims, result.n_assets, [seed])
+    scen_u = {
+        "vine": rebuild_vinecop(result).inverse_rosenblatt(sobol),
+        "gauss": _gaussian_copula_uniforms(u_win, sobol),
+        "indep": sobol,
+    }
+    cols = window_returns.columns
+    return {name: marg.inverse_transform(pd.DataFrame(np.clip(u, 1e-9, 1 - 1e-9), columns=cols)).to_numpy()
+            for name, u in scen_u.items()}
+
+
+def tail_grid(losses: np.ndarray, alpha: float, k: int = 20) -> np.ndarray:
+    """``k`` quantiles that summarise the loss tail beyond the ``alpha``-quantile.
+
+    The quantiles are taken at the midpoints of ``k`` equal-probability cells of the tail
+    (``alpha + (1 - alpha) * (i + 0.5) / k``). Their mean is close to the Expected Shortfall, and drawing
+    one of them at random mimics a loss given that VaR was exceeded (used by the ES backtests).
+    """
+    probs = alpha + (1 - alpha) * (np.arange(k) + 0.5) / k
+    return np.quantile(np.asarray(losses, dtype=float), probs)
+
+
+def loss_summary(losses: np.ndarray, alphas: Sequence[float], k: int = 20) -> dict[float, dict]:
+    """VaR, ES and the tail grid of a loss sample for several confidence levels."""
+    out = {}
+    for a in alphas:
+        var, es = var_es(losses, a)
+        out[a] = {"var": var, "es": es, "tail": tail_grid(losses, a, k)}
+    return out
+
+
 def window_risk(
     result: VineFitResult,
     window_returns: pd.DataFrame,
@@ -104,38 +155,30 @@ def window_risk(
     alpha: float = 0.99,
     n_sims: int = 2 ** 14,
     seed: int = 0,
+    *,
+    marginal: Marginal | None = None,
 ) -> dict[str, float]:
     """VaR and ES for one window under the vine and the benchmark models.
 
     ``window_returns`` must be the data the vine was fitted on. The same Sobol points
     are used for every model (and, with the same ``seed``, for every window), so
-    differences between models or dates are not simulation noise.
+    differences between models or dates are not simulation noise. ``marginal`` is a fitted
+    marginal model (default: ranks on the window; see `scenario_returns`).
 
     Returns ``var_*``/``es_*`` for ``vine``, ``gauss``, ``indep`` and ``hist``. Losses
     are in return units (0.02 = 2% of portfolio value).
     """
-    if list(window_returns.columns) != list(result.assets):
-        raise ValueError("window_returns columns do not match the fit.")
     w = equal_weights(result.n_assets) if weights is None else np.asarray(weights, dtype=float)
-    marg = EmpiricalMarginal().fit(window_returns)
-    u_win = marg.transform(window_returns).to_numpy()
-    sobol = pv.utils.sobol(n_sims, result.n_assets, [seed])
-    scen = {
-        "vine": rebuild_vinecop(result).inverse_rosenblatt(sobol),
-        "gauss": _gaussian_copula_uniforms(u_win, sobol),
-        "indep": sobol,
-    }
     out: dict[str, float] = {}
-    cols = window_returns.columns
-    for name, u in scen.items():
-        r = marg.inverse_transform(pd.DataFrame(np.clip(u, 1e-9, 1 - 1e-9), columns=cols)).to_numpy()
+    for name, r in scenario_returns(result, window_returns, marginal=marginal, n_sims=n_sims, seed=seed).items():
         out[f"var_{name}"], out[f"es_{name}"] = var_es(portfolio_loss(w, r), alpha)
     out["var_hist"], out["es_hist"] = var_es(portfolio_loss(w, window_returns.to_numpy()), alpha)
     return out
 
 
 def _risk_task(args: tuple) -> dict[str, float]:  # top-level so it can be pickled
-    return window_risk(*args)
+    result, window, weights, alpha, n_sims, seed, marginal = args
+    return window_risk(result, window, weights, alpha, n_sims, seed, marginal=marginal)
 
 
 def rolling_risk(
@@ -148,11 +191,15 @@ def rolling_risk(
     step: int = 1,
     n_jobs: int = 1,
     after: pd.Timestamp | None = None,
+    marginal_factory: Callable[[], Marginal] | None = None,
+    lookback: int | None = None,
 ) -> pd.DataFrame:
     """VaR/ES at every ``step``-th fit (``timestamp`` -> risk measures).
 
     The fits are picked from the first one on (the 0th, ``step``-th, ...); with ``after`` only
     those later than that date are computed, to extend an earlier table on the same grid.
+    ``marginal_factory`` and ``lookback`` give the marginal model of the run (default: ranks on the
+    window); a GARCH marginal is fitted on the ``lookback`` observations ending at each fit.
 
     Each fit's window is taken from ``returns`` (the ``n_obs`` observations ending at the
     fit's timestamp), so a row only uses data available at its timestamp. Also adds
@@ -167,8 +214,9 @@ def rolling_risk(
     tasks, stamps = [], []
     for r in picked:
         end = returns.index.get_loc(pd.Timestamp(r.timestamp))
-        win = returns.iloc[end - r.n_obs + 1: end + 1]
-        tasks.append((r, win, weights, alpha, n_sims, seed))
+        hist = returns.iloc[end - (lookback or r.n_obs) + 1: end + 1]
+        tasks.append((r, hist.iloc[-r.n_obs:], weights, alpha, n_sims, seed,
+                      None if marginal_factory is None else marginal_factory().fit(hist)))
         stamps.append(pd.Timestamp(r.timestamp))
     if n_jobs > 1 and tasks:
         with ProcessPoolExecutor(max_workers=n_jobs) as ex:

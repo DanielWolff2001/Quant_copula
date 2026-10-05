@@ -153,3 +153,64 @@ def test_backtest_counts_exceedances_and_kupiec():
 def test_config_defaults():
     cfg = load_config("configs/default.yaml")
     assert cfg.risk.simulations == 16384 and cfg.risk.weights is None and cfg.risk.confidence_level == 0.99
+
+
+# ---- generalised scenarios: marginals, tail grids, summaries ------------------------------
+from vine_risk.garch import GarchMarginal
+from vine_risk.marginals import MarginalSpec
+from vine_risk.portfolio import loss_summary, scenario_returns, tail_grid
+from vine_risk.synthetic import simulate_garch
+
+
+def test_tail_grid_and_loss_summary():
+    losses = np.random.default_rng(0).standard_normal(200_000)
+    grid = tail_grid(losses, 0.99, k=20)
+    assert len(grid) == 20 and (np.diff(grid) > 0).all() and grid[0] > stats.norm.ppf(0.99)
+    var, es = var_es(losses, 0.99)
+    assert grid.mean() == pytest.approx(es, rel=0.02)  # the grid reproduces the expected shortfall
+    summ = loss_summary(losses, [0.975, 0.99], k=10)
+    assert set(summ) == {0.975, 0.99} and summ[0.99]["var"] == pytest.approx(var) and summ[0.99]["es"] == pytest.approx(es)
+    assert summ[0.975]["var"] < summ[0.99]["var"] and len(summ[0.975]["tail"]) == 10
+
+
+def test_scenario_returns_default_matches_window_risk_and_shares_random_numbers():
+    res, r = _fit(Regime(400, 0.5))
+    sc = scenario_returns(res, r, n_sims=2 ** 10, seed=1)
+    assert set(sc) == {"vine", "gauss", "indep"} and all(v.shape == (2 ** 10, 3) for v in sc.values())
+    out = window_risk(res, r, n_sims=2 ** 10, seed=1)
+    var, es = var_es(portfolio_loss(equal_weights(3), sc["vine"]), 0.99)
+    assert out["var_vine"] == var and out["es_vine"] == es
+    again = scenario_returns(res, r, n_sims=2 ** 10, seed=1)
+    assert all(np.array_equal(sc[k], again[k]) for k in sc)
+
+
+def test_garch_marginal_makes_risk_a_conditional_forecast():
+    calm, _ = simulate_garch([Regime(700, 0.5)], n_assets=3, seed=8)
+    wild = calm.copy()
+    wild.iloc[-8:] *= 4.0  # a volatility burst just before the forecast date
+    res = {}
+    for name, data in (("calm", calm), ("wild", wild)):
+        marg = GarchMarginal().fit(data)
+        win = data.iloc[-250:]
+        fit = VineCopula(**FAST).fit(marg.transform(win), win).summary()
+        res[name] = (window_risk(fit, win, n_sims=2 ** 12, marginal=marg), window_risk(fit, win, n_sims=2 ** 12))
+    garch_calm, emp_calm = res["calm"]
+    garch_wild, emp_wild = res["wild"]
+    assert garch_wild["es_vine"] > 1.8 * garch_calm["es_vine"]  # conditional: reacts to today's volatility
+    assert emp_wild["es_vine"] < 1.8 * emp_calm["es_vine"]  # rank marginals describe the whole window
+    assert garch_wild["es_indep"] > 1.5 * garch_calm["es_indep"]
+
+
+def test_rolling_risk_with_a_garch_marginal_equals_manual_computation():
+    r, _ = simulate_garch([Regime(330, 0.6)], n_assets=3, seed=2)
+    model = RollingVineModel(60, 20, dict(FAST, tail_simulations=2 ** 9), MarginalSpec("garch_t"), 150)
+    fits = model.run(r)
+    risk = rolling_risk(fits, r, n_sims=2 ** 9, seed=0, step=2, marginal_factory=MarginalSpec("garch_t"), lookback=150)
+    f = fits[2]
+    end = r.index.get_loc(pd.Timestamp(f.timestamp))
+    hist = r.iloc[end - 149: end + 1]
+    manual = window_risk(f, hist.iloc[-60:], n_sims=2 ** 9, seed=0, marginal=GarchMarginal().fit(hist))
+    got = risk.loc[pd.Timestamp(f.timestamp)]
+    assert got["es_vine"] == pytest.approx(manual["es_vine"]) and got["var_indep"] == pytest.approx(manual["var_indep"])
+    plain = rolling_risk(fits, r, n_sims=2 ** 9, seed=0, step=2)
+    assert not np.isclose(plain.loc[pd.Timestamp(f.timestamp), "es_vine"], got["es_vine"])  # the marginal matters

@@ -5,6 +5,7 @@
     vine-risk run [--steps rolling,metrics,changes,risk] [--last N] ...   # the whole pipeline
     vine-risk update [--dry-run] ...                                      # daily update with the latest prices
     vine-risk schedule --kind cron|launchd|systemd                        # print a ready-made scheduler entry
+    vine-risk benchmark --garch-run-dir DIR ...                           # compare risk models, backtested
     vine-risk replay [--days 120] ...                                     # simulated live monitoring
     vine-risk info [RUN_DIR]                                              # what produced a run folder
     vine-risk dashboard [--run-dir ...]                                   # open the Streamlit dashboard
@@ -145,6 +146,32 @@ def cmd_schedule(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_benchmark(a: argparse.Namespace) -> int:
+    from vine_risk.benchmark import BenchmarkSpec, evaluate, format_report, resolve_portfolios, run_benchmark
+
+    cfg = load_config(a.config)
+    _, returns = load_prices_and_returns(cfg)
+    emp_run = Path(a.run_dir) if a.run_dir else default_run_dir(cfg)
+    garch_run = Path(a.garch_run_dir) if a.garch_run_dir else None
+    lookback = 500
+    if garch_run is not None:
+        m = read_manifest(garch_run)
+        if m is None:
+            raise FileNotFoundError(f"{garch_run} has no manifest; make it with `vine-risk run --marginal garch_t --run-dir {garch_run}`.")
+        lookback = int(m["fit_fingerprint"]["marginal_lookback"])
+    spec = BenchmarkSpec(resolve_portfolios(cfg), alphas=tuple(a.alphas), window=a.hist_window, ewma_lookback=a.ewma_lookback,
+                         n_sims=cfg.risk.simulations, seed=cfg.risk.seed, garch_lookback=lookback)
+    out = Path(a.out or "data/results/benchmark")
+    out.mkdir(parents=True, exist_ok=True)
+    with run_lock(out):
+        run_benchmark(cfg, returns, out, emp_run=emp_run, garch_run=garch_run, spec=spec, step=a.step, first=a.first,
+                      n_jobs=a.n_jobs or cfg.rolling.n_jobs, progress=TextProgress("forecast dates"))
+        if not a.no_evaluate:
+            print(format_report(evaluate(out, a.reference, a.n_sim)))
+    print(f"\nforecasts, realised losses and report.csv -> {out}")
+    return 0
+
+
 def cmd_replay(a: argparse.Namespace) -> int:
     from vine_risk.replay import run_replay
 
@@ -278,6 +305,20 @@ def build_parser() -> argparse.ArgumentParser:
     sc.add_argument("--run-dir", help="results folder to update")
     sc.add_argument("--window", type=int, help="add --window to the scheduled command")
     sc.add_argument("--refit-frequency", type=int, help="add --refit-frequency to the scheduled command")
+
+    b = add("benchmark", cmd_benchmark, "compare the vine copula with standard risk models: forecasts, backtests, model comparison")
+    b.add_argument("--run-dir", help="run folder with rank-marginal fits (default data/results/w<window>)")
+    b.add_argument("--garch-run-dir", help="run folder made with --marginal garch_t (adds the GARCH-marginal copula models)")
+    b.add_argument("--out", help="output folder (default data/results/benchmark)")
+    b.add_argument("--alphas", type=float, nargs="+", default=[0.975, 0.99], help="confidence levels (default: 0.975 0.99)")
+    b.add_argument("--hist-window", type=int, default=250, help="window of the historical-simulation model")
+    b.add_argument("--ewma-lookback", type=int, default=500, help="history of the EWMA models")
+    b.add_argument("--first", help="first forecast date")
+    b.add_argument("--step", type=int, default=1, help="use every N-th common date (default every day)")
+    b.add_argument("--n-jobs", type=int, help="worker processes")
+    b.add_argument("--reference", default="vine_garch", help="model the Diebold-Mariano tests compare against")
+    b.add_argument("--n-sim", type=int, default=2000, help="simulations behind the Expected Shortfall test p-values")
+    b.add_argument("--no-evaluate", action="store_true", help="only compute the forecasts")
 
     pl = add("replay", cmd_replay, "simulated live monitoring: replay recent history day by day")
     pl.add_argument("--run-dir", help="results folder to resume from")

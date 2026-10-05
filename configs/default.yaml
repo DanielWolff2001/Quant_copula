@@ -25,4 +25,8 @@ risk:
   confidence_level: 0.99
   simulations: 16384         # Sobol points per window (power of 2)
   weights: null              # null = equal weights; or a list with one weight per asset
+  portfolios:                # named portfolios for `vine-risk benchmark` (weights per ticker, normalised)
+    equal: null              #   null = equal weights over all assets
+    equities: {AAPL: 1, MSFT: 1, NVDA: 1, JPM: 1, XOM: 1, JNJ: 1}
+    stocks_bonds: {SPY: 0.6, TLT: 0.4}
   seed: 42

@@ -261,8 +261,10 @@ class LiveMonitor:
             k = self.cfg.risk_every_fits
             if k and (self._n_fits - 1) % k == 0:
                 w = None if self.cfg.weights is None else np.asarray(self.cfg.weights, dtype=float)
-                rec.risk = window_risk(cur, self.model._buffer, w, self.cfg.risk_alpha, self.cfg.risk_sims,
-                                       self.cfg.seed)
+                buf = self.model._buffer  # the marginal's history; the vine's window is its last n_obs rows
+                marg = None if self.cfg.marginal == "empirical" else self.model.marginal_factory().fit(buf)
+                rec.risk = window_risk(cur, buf.iloc[-cur.n_obs:], w, self.cfg.risk_alpha, self.cfg.risk_sims,
+                                       self.cfg.seed, marginal=marg)
         del res[: max(0, len(res) - (self.lag + 2))]  # keep only what the comparisons need
 
     def _maybe_scan(self, rec: MonitorRecord) -> None:
