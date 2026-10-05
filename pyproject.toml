@@ -7,7 +7,7 @@ name = "vine-risk"
 version = "0.1.0"
 description = "Dynamic vine copula risk monitoring"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
     "numpy",
