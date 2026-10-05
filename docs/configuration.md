@@ -32,6 +32,10 @@ risk:
   simulations: 16384          # scenarios per window (a power of 2 works best)
   seed: 42                    # seeds every simulation
   weights: null               # null = equal weights; or a list with one weight per asset
+  portfolios:                 # named portfolios for `vine-risk benchmark` (weights per ticker, normalised)
+    equal: null               #   null = equal weights over all assets
+    equities: {AAPL: 1, MSFT: 1, NVDA: 1, JPM: 1, XOM: 1, JNJ: 1}
+    stocks_bonds: {SPY: 0.6, TLT: 0.4}
 ```
 
 ## Which settings change the fits?

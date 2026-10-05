@@ -12,7 +12,7 @@ the dependence structure can be detected. The resulting dependence models are
 subsequently used to investigate implications for portfolio tail risk.
 
 It is a research project, **not a trading strategy**. All ten phases of the project plan are implemented, tested
-(about 180 automated tests) and documented. **Full documentation: <https://danielwolff2001.github.io/Quant_copula/>**
+(about 230 automated tests) and documented, and a ten-model risk comparison has been run on the real data. **Full documentation: <https://danielwolff2001.github.io/Quant_copula/>**
 (the same pages are in `docs/`).
 
 ## Quick start
@@ -83,10 +83,17 @@ no-change level); the live monitor turns this into about one alert episode every
 ![99 % Expected Shortfall of an equal-weight portfolio under four dependence models](docs/assets/portfolio-es.png)
 
 With the same marginals, ignoring dependence understates the 99 % Expected Shortfall by about a fifth in a calm window and by a factor
-of two to three in 2008 and 2020; a Gaussian copula, which has no tail dependence, lies in between. A next-day VaR backtest over 1,045
-dates gives exceedance rates of 0.96 % (vine copula), 1.5 % (Gaussian copula), 1.6 % (historical simulation) and 5.6 % (independence)
-against an expected 1 %; with about ten exceedances, the vine is not significantly better than the Gaussian copula or historical
-simulation. Most of the variation of tail risk over time comes from volatility, with dependence a smaller but real part.
+of two to three in 2008 and 2020; a Gaussian copula, which has no tail dependence, lies in between. Most of the variation of tail
+risk over time comes from volatility, with dependence a smaller but real part.
+
+**Does the vine copula forecast risk better than standard models?** Not on this data. Ten models (historical simulation, RiskMetrics
+EWMA with normal and Student-t returns, filtered historical simulation, and the vine, Gaussian and independence copulas with rank or
+GARCH-filtered marginals) forecast next-day VaR and Expected Shortfall on 4,971 days (2007-2026), backtested with Kupiec,
+Christoffersen and Acerbi-Székely tests and a joint VaR/ES score. The GARCH-based models score best, and the vine ties with its simpler
+rivals (Gaussian copula and filtered historical simulation; Diebold-Mariano p = 0.59 and 0.86); the rank-marginal models and plain
+historical simulation score significantly worse. All GARCH copula models have about 1.7 times too many 99 % exceedances. The vine's
+tail-dependence advantage, clear on simulated data with a known truth, is not detectable on real stocks and bonds, so the value
+of conditioning on volatility exceeds that of the vine's richer dependence model. [Details](docs/benchmarks.md)
 
 ## 6. Limitations
 
@@ -96,8 +103,9 @@ simulation. Most of the variation of tail risk over time comes from volatility, 
 * Many dates and pairs are examined, so some "significant" changes occur by chance; effect sizes and corrected flags are reported.
 * Realistic tail-only changes are hard to detect with 250 or 500 daily observations, so a non-significant tail test is weak evidence.
 * A detected statistical change is not an economic regime change, and associations are not causes.
-* The comparison models are few and simple (Gaussian copula, independence, historical simulation); GARCH-based and extreme-value
-  models were not compared. Daily data only.
+* The model comparison is one data set (eight US-listed assets, 2005-2026). DCC-GARCH and extreme-value models were not included, the
+  window, assets and settings were not varied, and the GARCH models use an estimated mean return that pushes VaR down (see
+  [the comparison](docs/benchmarks.md)). Daily data only.
 
 [All limitations](docs/limitations.md)
 

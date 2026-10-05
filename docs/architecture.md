@@ -30,7 +30,10 @@ Quant_copula/
 │   ├── rolling.py         RollingVineModel: the rolling-window machinery, checkpoints.
 │   │  analysis
 │   ├── change_detection.py Structural change scores and the calibrated permutation test.
-│   ├── portfolio.py       Loss, VaR, Expected Shortfall from simulated scenarios.
+│   ├── portfolio.py       Loss, VaR, Expected Shortfall from simulated scenarios (rank or GARCH marginals).
+│   ├── riskmodels.py      Standard models to compare against: historical, EWMA normal/t, filtered historical simulation.
+│   ├── backtesting.py     Kupiec, Christoffersen, Acerbi-Szekely ES tests, FZ0 score, Diebold-Mariano.
+│   ├── benchmark.py       Ten risk models, same days, same portfolios: forecasts and a backtest report.
 │   ├── synthetic.py, validation.py   Simulated data with known truth, and the validation study.
 │   │  running it
 │   ├── runner.py          The pipeline steps (incremental), shared by the command line and scripts.

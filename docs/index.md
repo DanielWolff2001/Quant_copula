@@ -42,6 +42,7 @@ All ten phases of the project plan are implemented, tested (about 180 automated 
 | 7 | portfolio risk (VaR, Expected Shortfall) and a VaR backtest |
 | 8 | synthetic validation study |
 | 9-10 | dashboard; simulated live monitor, now with a real daily-update command |
+| extra | GARCH-filtered marginals, ten-model risk comparison with backtests ([results](benchmarks.md)), GARCH-filtered change scan |
 
 !!! warning "Reading the results"
     Detected changes are statistical, not necessarily economic regime changes, and the associations found (for example higher dependence

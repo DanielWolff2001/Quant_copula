@@ -8,6 +8,7 @@ Everything is available through one command, `vine-risk` (also `python -m vine_r
 | [`vine-risk run`](#run) | run or extend the whole pipeline |
 | [`vine-risk update`](#update) | daily update: fetch new prices, process them, extend the run |
 | [`vine-risk schedule`](#schedule) | print a ready-made cron / launchd / systemd entry for the daily update |
+| [`vine-risk benchmark`](#benchmark) | compare the vine copula with standard risk models, backtested |
 | [`vine-risk replay`](#replay) | simulated live monitoring: replay recent history day by day |
 | [`vine-risk info`](#info) | show what produced a run folder |
 | [`vine-risk dashboard`](#dashboard) | open the Streamlit dashboard |
@@ -29,7 +30,7 @@ Runs four steps in order, each reading what the previous one wrote into the **ru
 |------|------|--------|
 | `rolling` | fits a vine on every window (in parallel) | `checkpoint.jsonl`, `fits.parquet`, `pair_copulas.parquet`, `pairwise.parquet` |
 | `metrics` | dependence metrics per fit | `dependence_metrics.parquet`, `pairwise_*.parquet` |
-| `changes` | change scores and the permutation-test scan | `structural_change_scores.parquet`, `change_scan.parquet` |
+| `changes` | change scores and the permutation-test scan (`--filtered-scan` adds a scan on GARCH-filtered residuals) | `structural_change_scores.parquet`, `change_scan.parquet` (`change_scan_garch.parquet`) |
 | `risk` | rolling VaR and Expected Shortfall, VaR backtest | `portfolio_risk.parquet`, `var_backtest.csv` |
 
 Useful options: `--last 700` uses only the last 700 days (a quick test); `--steps rolling,metrics` runs a subset;
@@ -66,6 +67,19 @@ vine-risk schedule --kind cron|launchd|systemd [--at 23:30] [--run-dir DIR]
 
 Prints the text of a scheduler entry that runs `vine-risk update` on weekdays at the given local time, with this machine's paths
 filled in. Nothing is installed; see [Daily updates](daily-update.md#scheduling) for where to put it.
+
+## benchmark
+
+```bash
+vine-risk benchmark --garch-run-dir data/results/w250_garch [--run-dir data/results/w250] [--out data/results/benchmark]
+                    [--alphas 0.975 0.99] [--first DATE] [--step 1] [--reference vine_garch] [--no-evaluate]
+```
+
+Compares ten risk models on the same days and portfolios: for every date, each model forecasts tomorrow's VaR and Expected Shortfall
+from the data up to that date; the forecasts are then backtested against what happened (Kupiec, Christoffersen, Acerbi-Székely, a
+joint VaR/ES score and Diebold-Mariano tests). Needs the fits of two run folders, one with rank marginals (`--run-dir`) and one made
+with `--marginal garch_t` (`--garch-run-dir`). Without the second, the GARCH copula models are left out. Writes `forecasts.parquet`,
+`realized.parquet` and `report.csv`; it is incremental like the other steps. See [Risk model comparison](benchmarks.md).
 
 ## replay
 
