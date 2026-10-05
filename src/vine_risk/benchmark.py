@@ -110,7 +110,7 @@ def forecast_origin(spec: BenchmarkSpec, history: pd.DataFrame, emp_fit: VineFit
     out += EwmaStudentT(spec.ewma_lambda, spec.ewma_lookback).forecast(history, pf, al)
     ghist = history.iloc[-spec.garch_lookback:]
     garch = GarchMarginal(innovations="t").fit(ghist)  # shared by the filtered models
-    out += FilteredHistoricalSimulation(spec.garch_lookback, spec.n_sims, spec.seed).forecast(history, pf, al, garch=garch)
+    out += FilteredHistoricalSimulation(spec.garch_lookback).forecast(history, pf, al, garch=garch)
     if emp_fit is not None:
         win = history.iloc[-emp_fit.n_obs:]
         out += _copula_forecasts("emp", scenario_returns(emp_fit, win, n_sims=spec.n_sims, seed=spec.seed), spec)

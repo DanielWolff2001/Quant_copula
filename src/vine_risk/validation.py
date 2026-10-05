@@ -33,13 +33,15 @@ from typing import Mapping, Sequence
 
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 from vine_risk.change_detection import change_scan, default_lag, structural_change_scores
 from vine_risk.copula import VineCopula
 from vine_risk.marginals import EmpiricalMarginal
 from vine_risk.portfolio import equal_weights, portfolio_loss, var_es, window_risk
+from vine_risk.riskmodels import EwmaNormal, EwmaStudentT, FilteredHistoricalSimulation
 from vine_risk.rolling import RollingVineModel
-from vine_risk.synthetic import Regime, simulate_regimes
+from vine_risk.synthetic import Regime, simulate_garch, simulate_regimes
 
 logger = logging.getLogger(__name__)
 
@@ -198,6 +200,17 @@ def _truth(regime: Regime, n_assets: int, q: float, alpha: float, n_truth: int, 
     return {"lower_tail_q": float(np.mean(lows)), "var": var, "es": es}
 
 
+def _standard_models(returns: pd.DataFrame, alpha: float, lookback: int) -> dict[str, float]:
+    """VaR/ES of the equal-weight portfolio under EWMA-normal, EWMA-Student-t and filtered historical simulation."""
+    pf = {"p": equal_weights(returns.shape[1])}
+    out = {}
+    for model in (EwmaNormal(lookback=lookback), EwmaStudentT(lookback=lookback),
+                  FilteredHistoricalSimulation(lookback=lookback)):
+        f = model.forecast(returns, pf, [alpha])[0]
+        out[f"var_{model.name}"], out[f"es_{model.name}"] = f.var, f.es
+    return out
+
+
 def estimation_accuracy(
     regime: Regime, windows: Sequence[int] = (125, 250, 500), n_reps: int = 40, n_assets: int = 4,
     q: float = 0.05, alpha: float = 0.99, n_sims: int = 2 ** 14, n_truth: int = 1_000_000,
@@ -218,10 +231,11 @@ def estimation_accuracy(
             vc = VineCopula(tail_simulations=2 ** 13, tail_level=q).fit(u, r)
             res = vc.summary()
             risk = window_risk(res, r, alpha=alpha, n_sims=n_sims, seed=seed)
+            others = _standard_models(r, alpha, w)
             rows.append({
                 "window": w, "rep": rep, "lower_tail_q": res.pairwise_frame()["lower_tail_q"].mean(),
                 **{k: risk[k] for k in ("var_vine", "es_vine", "var_gauss", "es_gauss", "var_hist", "es_hist")},
-                **{f"true_{k}": v for k, v in truth.items()},
+                **others, **{f"true_{k}": v for k, v in truth.items()},
             })
     return pd.DataFrame(rows)
 
@@ -231,7 +245,11 @@ def accuracy_summary(df: pd.DataFrame) -> pd.DataFrame:
     pairs = {"lower_tail_q (vine)": ("lower_tail_q", "true_lower_tail_q"),
              "VaR vine": ("var_vine", "true_var"), "VaR gauss": ("var_gauss", "true_var"),
              "VaR hist": ("var_hist", "true_var"), "ES vine": ("es_vine", "true_es"),
-             "ES gauss": ("es_gauss", "true_es"), "ES hist": ("es_hist", "true_es")}
+             "ES gauss": ("es_gauss", "true_es"), "ES hist": ("es_hist", "true_es"),
+             "VaR ewma_n": ("var_ewma_n", "true_var"), "VaR ewma_t": ("var_ewma_t", "true_var"),
+             "VaR fhs": ("var_fhs", "true_var"), "ES ewma_n": ("es_ewma_n", "true_es"),
+             "ES ewma_t": ("es_ewma_t", "true_es"), "ES fhs": ("es_fhs", "true_es")}
+    pairs = {k: v for k, v in pairs.items() if v[0] in df.columns}
     rows = []
     for w, g in df.groupby("window"):
         for label, (est, tru) in pairs.items():
@@ -240,3 +258,64 @@ def accuracy_summary(df: pd.DataFrame) -> pd.DataFrame:
                          "mean_estimate": g[est].mean(), "bias_pct": 100 * err.mean(),
                          "rmse_pct": 100 * np.sqrt((err ** 2).mean())})
     return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Known truth for *conditional* risk: GARCH volatility with a copula for the shocks
+# ---------------------------------------------------------------------------
+
+def conditional_accuracy(
+    regime: Regime, n_assets: int = 4, n_obs: int = 1700, n_origins: int = 40, window: int = 250,
+    lookback: int = 750, alpha: float = 0.99, omega: float = 0.05, a: float = 0.08, b: float = 0.90,
+    nu: float = 6.0, n_truth: int = 200_000, n_sims: int = 2 ** 13, seed: int = 0, n_series: int = 1,
+) -> pd.DataFrame:
+    """How well does each model forecast tomorrow's VaR/ES when the truth is a GARCH process?
+
+    Returns follow ``r_t = sigma_t e_t`` with GARCH(1,1) volatility (:func:`simulate_garch`) and shocks
+    ``e_t`` that are Student-t(``nu``) with the dependence ``regime``. At ``n_origins`` dates the *exact*
+    one-day-ahead VaR and ES of the equal-weight portfolio are known (the true next-day volatility, applied
+    to a large sample of shocks); every model forecasts them from the history alone. One row per
+    (origin, model) with ``var``, ``es`` and the ``true_*`` values.
+
+    Models: the ten of :mod:`vine_risk.benchmark`, with the vine fitted on the last ``window`` days
+    (rank marginals) or on GARCH-filtered marginals fitted on ``lookback`` days. Origins within one
+    simulated series share most of their history, so their errors are correlated (one extreme day can
+    bias many of them); use ``n_series > 1`` independent series, ``n_origins`` each, for honest averages.
+    """
+    from vine_risk.benchmark import BenchmarkSpec, forecast_origin
+    from vine_risk.marginals import MarginalSpec
+    from vine_risk.rolling import fit_window
+
+    w = equal_weights(n_assets)
+    shocks = stats.norm.cdf(simulate_regimes([Regime(n_truth, regime.rho, regime.df)], n_assets, seed + 777, vol=1.0).to_numpy())
+    shocks = stats.t.ppf(shocks, nu) / np.sqrt(nu / (nu - 2))
+    spec = BenchmarkSpec({"p": w}, (alpha,), window, 0.94, lookback, lookback, n_sims, seed)
+    vk = dict(truncation_level=3, tail_simulations=2 ** 11)
+    rows = []
+    for k in range(n_series):
+        r, sig = simulate_garch([Regime(n_obs, regime.rho, regime.df)], n_assets, seed + 101 * k,
+                                omega=omega, alpha=a, beta=b, nu=nu)
+        rng = np.random.default_rng(seed + 101 * k)
+        origins = np.sort(rng.choice(np.arange(lookback, n_obs - 1), size=n_origins, replace=False))
+        for t in origins:
+            hist = r.iloc[: t + 1]
+            sigma_next = np.sqrt(omega + a * (r.iloc[t].to_numpy() * 100) ** 2 + b * (sig.iloc[t].to_numpy() * 100) ** 2) / 100
+            true_var, true_es = var_es(portfolio_loss(w, shocks * sigma_next), alpha)
+            emp = fit_window(hist.iloc[-window:], vk, EmpiricalMarginal)
+            gar = fit_window(hist.iloc[-lookback:], vk, MarginalSpec("garch_t"), window)
+            for f in forecast_origin(spec, hist, emp, gar):
+                rows.append({"series": k, "origin": r.index[t], "model": f.model, "var": f.var, "es": f.es,
+                             "true_var": true_var, "true_es": true_es})
+    return pd.DataFrame(rows)
+
+
+def conditional_accuracy_summary(df: pd.DataFrame) -> pd.DataFrame:
+    """Bias and RMSE (% of the truth) of VaR and ES per model, and how well the forecasts *track* the true
+    risk over time (correlation of the log forecast with the log truth across origins)."""
+    rows = []
+    for model, g in df.groupby("model", sort=False):
+        ev, ee = (g["var"] - g["true_var"]) / g["true_var"], (g["es"] - g["true_es"]) / g["true_es"]
+        rows.append({"model": model, "n": len(g), "var_bias_pct": 100 * ev.mean(), "var_rmse_pct": 100 * np.sqrt((ev ** 2).mean()),
+                     "es_bias_pct": 100 * ee.mean(), "es_rmse_pct": 100 * np.sqrt((ee ** 2).mean()),
+                     "tracking_corr": float(np.corrcoef(np.log(g["var"]), np.log(g["true_var"]))[0, 1])})
+    return pd.DataFrame(rows).set_index("model")

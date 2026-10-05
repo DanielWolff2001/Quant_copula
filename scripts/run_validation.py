@@ -4,8 +4,8 @@ Usage: python scripts/run_validation.py [--reps-scan 20] [--reps-fit 10] [--reps
        [--window 250] [--n-jobs 4] [--out reports/validation] [--raw data/results/validation]
 
 Takes roughly half an hour. Everything is seeded, so reruns give identical tables.
-Writes ``detection_scan.csv``, ``detection_scores.csv``, ``detection_scores_volcal.csv``
-and ``estimation_accuracy.csv`` to ``--out`` (small, kept in git) and the raw per-date
+Writes ``detection_scan.csv``, ``detection_scores.csv``, ``detection_scores_volcal.csv``,
+``estimation_accuracy.csv`` and ``conditional_accuracy.csv`` to ``--out`` (small, kept in git) and the raw per-date
 tables as parquet to ``--raw``. With ``--reuse`` the raw tables already in ``--raw`` are
 loaded instead of simulated again (only the summary tables are recomputed).
 """
@@ -20,7 +20,8 @@ import pandas as pd
 
 from vine_risk.synthetic import Regime
 from vine_risk.validation import (
-    accuracy_summary, add_flags, detection_summary, estimation_accuracy, null_threshold,
+    accuracy_summary, add_flags, conditional_accuracy, conditional_accuracy_summary, detection_summary,
+    estimation_accuracy, null_threshold,
     run_scan_experiment, run_score_experiment, standard_experiments,
 )
 
@@ -88,9 +89,18 @@ def main() -> None:
     acc = []
     for label, regime in (("gaussian_rho0.5", Regime(1, 0.5)), ("student3_rho0.5", Regime(1, 0.5, 3.0))):
         log.info("accuracy %s", label)
-        df = cached(raw / f"accuracy_{label}.parquet", lambda: estimation_accuracy(regime, n_reps=a.reps_acc))
+        df = cached(raw / f"accuracy_v2_{label}.parquet", lambda: estimation_accuracy(regime, n_reps=a.reps_acc))
         acc.append(accuracy_summary(df).assign(true_copula=label))
     pd.concat(acc).to_csv(out / "estimation_accuracy.csv", index=False)
+
+    # 4. conditional risk when the truth is a GARCH process: which model forecasts tomorrow's VaR/ES best?
+    cond = []
+    for label, regime in (("gaussian_rho0.5", Regime(1, 0.5)), ("student3_rho0.5", Regime(1, 0.5, 3.0))):
+        log.info("conditional accuracy %s", label)
+        df = cached(raw / f"conditional_{label}.parquet", lambda: conditional_accuracy(
+            regime, n_origins=10, n_series=8, seed=0))
+        cond.append(conditional_accuracy_summary(df).assign(true_copula=label))
+    pd.concat(cond).to_csv(out / "conditional_accuracy.csv")
     log.info("done -> %s", out)
 
 

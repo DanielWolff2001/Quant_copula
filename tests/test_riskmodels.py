@@ -26,7 +26,7 @@ def _by(fc, portfolio, alpha):
 
 
 def test_forecast_records_are_complete_for_every_model(iid):
-    models = [HistoricalSimulation(250), EwmaNormal(), EwmaStudentT(), FilteredHistoricalSimulation(500, n_boot=2 ** 12)]
+    models = [HistoricalSimulation(250), EwmaNormal(), EwmaStudentT(), FilteredHistoricalSimulation(500)]
     for m in models:
         fc = m.forecast(iid.iloc[:700], W3, ALPHAS)
         assert len(fc) == 4 and all(isinstance(f, RiskForecast) and f.model == m.name for f in fc)
@@ -89,7 +89,7 @@ def test_filtered_historical_simulation_recovers_the_true_conditional_quantile()
         h, s = r.iloc[:cut], sig.iloc[:cut]
         true_next = np.sqrt(omega + alpha * (h.iloc[-1, 0] * 100) ** 2 + beta * (s.iloc[-1, 0] * 100) ** 2) / 100
         true_var = true_next * stats.t.ppf(0.99, nu) / np.sqrt(nu / (nu - 2))
-        f = _by(FilteredHistoricalSimulation(1000, n_boot=2 ** 14).forecast(h, {"first": W3["first"]}, [0.99]), "first", 0.99)
+        f = _by(FilteredHistoricalSimulation(1000).forecast(h, {"first": W3["first"]}, [0.99]), "first", 0.99)
         assert f.var == pytest.approx(true_var, rel=0.25)  # estimation error of a 1000-day GARCH fit and a 1% tail
     # an unfiltered model with the same history misses the conditional volatility
     h = r.iloc[:1400]
@@ -99,7 +99,7 @@ def test_filtered_historical_simulation_recovers_the_true_conditional_quantile()
 def test_shared_garch_fit_gives_identical_results(iid):
     h = iid.iloc[:600]
     g = GarchMarginal(innovations="empirical").fit(h)
-    fhs = FilteredHistoricalSimulation(600, n_boot=2 ** 10)
+    fhs = FilteredHistoricalSimulation(600)
     a = fhs.forecast(h, W3, [0.99])
     b = fhs.forecast(h, W3, [0.99], garch=g)
     assert all(x.var == y.var and x.es == y.es for x, y in zip(a, b))
@@ -116,3 +116,18 @@ def test_input_validation(iid):
             model.forecast(h, W3, [1.5])
         with pytest.raises(ValueError, match="NaN"):
             model.forecast(holes, W3, [0.99])
+
+
+def test_fhs_uses_each_residual_once():
+    r, _ = simulate_garch([Regime(1000, 0.5)], n_assets=3, seed=9)
+    h = r.iloc[:800]
+    once = _by(FilteredHistoricalSimulation(500).forecast(h, W3, [0.99]), "eq", 0.99)
+    again = _by(FilteredHistoricalSimulation(500).forecast(h, W3, [0.99]), "eq", 0.99)
+    assert (once.var, once.es) == (again.var, again.es)  # deterministic: no random numbers
+    g = GarchMarginal(innovations="empirical").fit(h.iloc[-500:])
+    z = g.standardised_residuals().to_numpy()
+    nd = g.next_day()
+    direct = np.quantile(portfolio_loss(W3["eq"], nd.loc["mu"].to_numpy() + nd.loc["sigma"].to_numpy() * z), 0.99)
+    assert once.var == pytest.approx(direct)  # exactly the empirical quantile of the 500 scenarios
+    boot = _by(FilteredHistoricalSimulation(500, n_boot=2 ** 12, seed=1).forecast(h, W3, [0.99]), "eq", 0.99)
+    assert boot.var != once.var and 0.5 < boot.var / once.var < 2  # the resampling option exists and is in the same range

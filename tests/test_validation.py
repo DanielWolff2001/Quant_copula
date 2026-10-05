@@ -4,7 +4,8 @@ import pytest
 
 from vine_risk.synthetic import Regime
 from vine_risk.validation import (
-    Experiment, accuracy_summary, add_flags, detection_summary, estimation_accuracy, null_threshold,
+    Experiment, accuracy_summary, add_flags, conditional_accuracy, conditional_accuracy_summary, detection_summary,
+    estimation_accuracy, null_threshold,
     run_scan_experiment, run_score_experiment, standard_experiments, zone_of,
 )
 
@@ -94,3 +95,34 @@ def test_estimation_accuracy_small():
     assert set(s.window) == {150} and {"ES vine", "VaR hist", "lower_tail_q (vine)"} <= set(s.estimator)
     assert np.isfinite(s[["bias_pct", "rmse_pct"]].to_numpy()).all()
     assert (s.rmse_pct >= s.bias_pct.abs() - 1e-9).all()
+
+
+def test_accuracy_study_includes_the_standard_models():
+    df = estimation_accuracy(Regime(1, 0.5), windows=(150,), n_reps=2, n_assets=3, n_sims=2 ** 10, n_truth=20_000)
+    for col in ("var_ewma_n", "es_ewma_n", "var_ewma_t", "es_ewma_t", "var_fhs", "es_fhs"):
+        assert col in df.columns and (df[col] > 0).all()
+    est = set(accuracy_summary(df).estimator)
+    assert {"VaR ewma_n", "ES ewma_t", "ES fhs", "VaR vine"} <= est
+
+
+def test_conditional_accuracy_small_and_deterministic():
+    kw = dict(n_assets=3, n_obs=420, n_origins=3, window=100, lookback=200, n_truth=20_000, n_sims=2 ** 9, seed=2, n_series=2)
+    df = conditional_accuracy(Regime(1, 0.5, 3.0), **kw)
+    from vine_risk.benchmark import MODELS
+    assert len(df) == 2 * 3 * len(MODELS) and set(df["model"]) == set(MODELS) and set(df["series"]) == {0, 1}
+    assert (df["true_es"] > df["true_var"]).all() and (df["true_var"] > 0).all() and (df["var"] > 0).all()
+    pd.testing.assert_frame_equal(df, conditional_accuracy(Regime(1, 0.5, 3.0), **kw))
+    # the truth is the same for every model at an origin, and varies across origins (volatility clustering)
+    assert df.groupby(["series", "origin"])["true_var"].nunique().eq(1).all() and df["true_var"].nunique() > 2
+    summ = conditional_accuracy_summary(df)
+    assert set(summ.index) == set(MODELS) and (summ["n"] == 6).all()
+    assert summ["tracking_corr"].between(-1, 1).all()
+
+
+def test_conditional_models_track_changing_risk_better_than_unconditional_ones():
+    df = conditional_accuracy(Regime(1, 0.5), n_assets=3, n_obs=900, n_origins=8, window=200, lookback=400,
+                              n_truth=50_000, n_sims=2 ** 10, seed=5, n_series=3)
+    track = conditional_accuracy_summary(df)["tracking_corr"]
+    conditional = track[["ewma_n", "ewma_t", "fhs", "vine_garch", "gauss_garch"]].mean()
+    unconditional = track[["hist", "vine_emp", "gauss_emp"]].mean()
+    assert conditional > 0.9 and conditional > unconditional + 0.2
