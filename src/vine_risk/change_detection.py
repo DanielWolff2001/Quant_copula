@@ -30,7 +30,7 @@ permutation test (5) is calibrated by construction.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Callable, Sequence
 
 import numpy as np
 import pandas as pd
@@ -284,20 +284,28 @@ def two_window_change_test(
 
 def change_scan(
     returns: pd.DataFrame, window: int, step: int = 5, n_perm: int = 200, q: float = 0.1, seed: int = 0,
-    block: int = 1,
+    block: int = 1, after: pd.Timestamp | None = None,
+    progress: Callable[[int, int], None] | None = None,
 ) -> pd.DataFrame:
     """Run :func:`two_window_change_test` along the history.
 
     At each scan date ``t`` the window ``(t-window, t]`` is compared with the preceding
     window ``(t-2*window, t-window]``; only data up to ``t`` is used. Returns
     ``stat_*`` and ``p_*`` for tau, lower, upper (and their ``mean_*`` versions), indexed by ``t``.
+
+    The scan dates lie on a grid anchored at the first return observation. With ``after`` only
+    dates later than that are computed (to extend an earlier scan; the grid stays the same).
+    ``progress(done, total)`` is called after every scan date.
     """
     if len(returns) < 2 * window:
         raise ValueError(f"Need at least {2 * window} observations, got {len(returns)}.")
     x = returns.to_numpy()
+    grid = [t for t in range(2 * window - 1, len(x), step) if after is None or returns.index[t] > after]
     rows = {}
-    for t in range(2 * window - 1, len(x), step):
+    for i, t in enumerate(grid, start=1):
         rows[returns.index[t]] = two_window_change_test(x[t - 2 * window + 1: t + 1], window, n_perm, q, seed, block)
+        if progress:
+            progress(i, len(grid))
     out = pd.DataFrame.from_dict(rows, orient="index")
     out.index.name = "timestamp"
     return out

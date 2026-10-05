@@ -147,8 +147,12 @@ def rolling_risk(
     seed: int = 0,
     step: int = 1,
     n_jobs: int = 1,
+    after: pd.Timestamp | None = None,
 ) -> pd.DataFrame:
     """VaR/ES at every ``step``-th fit (``timestamp`` -> risk measures).
+
+    The fits are picked from the first one on (the 0th, ``step``-th, ...); with ``after`` only
+    those later than that date are computed, to extend an earlier table on the same grid.
 
     Each fit's window is taken from ``returns`` (the ``n_obs`` observations ending at the
     fit's timestamp), so a row only uses data available at its timestamp. Also adds
@@ -158,6 +162,8 @@ def rolling_risk(
     if step < 1:
         raise ValueError("step must be >= 1.")
     picked = [r for r in results if r.status == "ok"][::step]
+    if after is not None:
+        picked = [r for r in picked if pd.Timestamp(r.timestamp) > after]
     tasks, stamps = [], []
     for r in picked:
         end = returns.index.get_loc(pd.Timestamp(r.timestamp))
@@ -170,6 +176,9 @@ def rolling_risk(
     else:
         rows = [_risk_task(t) for t in tasks]
     out = pd.DataFrame(rows, index=pd.DatetimeIndex(stamps, name="timestamp"))
+    if out.empty:
+        return out.reindex(columns=[*(f"{m}_{k}" for m in ("var", "es") for k in ("vine", "gauss", "indep", "hist")),
+                                    "es_dependence_ratio", "es_non_gaussian"])
     out["es_dependence_ratio"] = out["es_vine"] / out["es_indep"]
     out["es_non_gaussian"] = out["es_vine"] - out["es_gauss"]
     return out

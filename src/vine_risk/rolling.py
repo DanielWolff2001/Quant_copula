@@ -17,6 +17,7 @@ the close of day ``t``. The marginal transform is re-estimated inside every wind
 from __future__ import annotations
 
 import logging
+import re
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Callable, Sequence
@@ -169,6 +170,7 @@ class RollingVineModel:
         returns: pd.DataFrame,
         n_jobs: int = 1,
         checkpoint: str | Path | None = None,
+        progress: Callable[[int, int], None] | None = None,
     ) -> list[VineFitResult]:
         """Fit the whole history. Equivalent to calling :meth:`step` row by row.
 
@@ -178,6 +180,7 @@ class RollingVineModel:
                 the caller must be import-safe (``if __name__ == "__main__"``).
             checkpoint: JSON-lines file. Results are appended as they complete and
                 timestamps already in the file are skipped, so interrupted runs resume.
+            progress: optional callback ``progress(done, total)`` called after every new fit.
         """
         if not isinstance(returns.index, pd.DatetimeIndex):
             raise TypeError("returns must have a DatetimeIndex.")
@@ -196,9 +199,9 @@ class RollingVineModel:
         if n_jobs > 1 and tasks:
             with ProcessPoolExecutor(max_workers=n_jobs) as ex:
                 it = ex.map(_fit_task, tasks, chunksize=max(1, len(tasks) // (n_jobs * 8)))
-                new = self._collect(it, checkpoint, len(tasks))
+                new = self._collect(it, checkpoint, len(tasks), progress)
         else:
-            new = self._collect((_fit_task(t) for t in tasks), checkpoint, len(tasks))
+            new = self._collect((_fit_task(t) for t in tasks), checkpoint, len(tasks), progress)
 
         for r in new:
             done[r.timestamp] = r
@@ -206,16 +209,61 @@ class RollingVineModel:
         return self.results
 
     @staticmethod
-    def _collect(it, checkpoint, total: int) -> list[VineFitResult]:
+    def _collect(it, checkpoint, total: int, progress=None) -> list[VineFitResult]:
         out = []
         for i, res in enumerate(it, start=1):
             out.append(res)
+            if progress:
+                progress(i, total)
             if checkpoint:
                 with open(checkpoint, "a") as f:
                     f.write(res.to_json() + "\n")
             if i % 100 == 0 or i == total:
                 logger.info("Fitted %d/%d windows", i, total)
         return out
+
+
+_TS = re.compile(r'"timestamp": "(\d{4}-\d{2}-\d{2})"')
+
+
+class CheckpointIndex:
+    """Random access to the fits stored in a checkpoint file (one JSON line per date).
+
+    Building the index reads the file once without parsing the JSON, so looking up single
+    dates (or just the latest one) is cheap even for a 50 MB checkpoint.
+    """
+
+    def __init__(self, path: str | Path) -> None:
+        self.path = Path(path)
+        self._offset: dict[str, int] = {}
+        with open(self.path, "rb") as f:
+            while True:
+                pos = f.tell()
+                line = f.readline()
+                if not line:
+                    break
+                m = _TS.search(line.decode("utf-8", errors="ignore"))
+                if m:
+                    self._offset[m.group(1)] = pos
+
+    def __len__(self) -> int:
+        return len(self._offset)
+
+    @property
+    def timestamps(self) -> pd.DatetimeIndex:
+        return pd.DatetimeIndex(sorted(self._offset))
+
+    def get(self, timestamp: pd.Timestamp | str) -> VineFitResult:
+        key = str(pd.Timestamp(timestamp).date())
+        if key not in self._offset:
+            raise KeyError(f"No fit stored for {key}.")
+        with open(self.path, "rb") as f:
+            f.seek(self._offset[key])
+            return VineFitResult.from_json(f.readline().decode("utf-8"))
+
+    def latest(self) -> VineFitResult | None:
+        """The fit with the latest date, or ``None`` for an empty checkpoint."""
+        return self.get(self.timestamps[-1]) if self._offset else None
 
 
 def load_results(path: str | Path) -> list[VineFitResult]:

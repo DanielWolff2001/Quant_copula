@@ -21,6 +21,9 @@ dependencies = [
     "networkx",
 ]
 
+[project.scripts]
+vine-risk = "vine_risk.cli:main"
+
 [project.optional-dependencies]
 dev = ["pytest"]
 dashboard = ["streamlit", "plotly"]

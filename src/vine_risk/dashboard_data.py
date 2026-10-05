@@ -14,9 +14,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from vine_risk.copula import VineFitResult
-
-_TS = re.compile(r'"timestamp": "(\d{4}-\d{2}-\d{2})"')
+from vine_risk.copula import VineFitResult  # noqa: F401  (re-exported for callers)
+from vine_risk.rolling import CheckpointIndex  # noqa: F401  (moved to vine_risk.rolling)
 
 SCRIPT_HINT = {
     "dependence_metrics.parquet": "python scripts/compute_metrics.py",
@@ -98,35 +97,6 @@ def load_run(
         backtest=pd.read_csv(bt, index_col=0) if bt.exists() else None,
         prices=prices, returns=returns, live=_read(d, "live/live_log.parquet"),
     )
-
-
-class CheckpointIndex:
-    """Random access to the fits stored in a checkpoint file (one JSON line per date)."""
-
-    def __init__(self, path: str | Path) -> None:
-        self.path = Path(path)
-        self._offset: dict[str, int] = {}
-        with open(self.path, "rb") as f:
-            while True:
-                pos = f.tell()
-                line = f.readline()
-                if not line:
-                    break
-                m = _TS.search(line.decode("utf-8", errors="ignore"))
-                if m:
-                    self._offset[m.group(1)] = pos
-
-    @property
-    def timestamps(self) -> pd.DatetimeIndex:
-        return pd.DatetimeIndex(sorted(self._offset))
-
-    def get(self, timestamp: pd.Timestamp | str) -> VineFitResult:
-        key = str(pd.Timestamp(timestamp).date())
-        if key not in self._offset:
-            raise KeyError(f"No fit stored for {key}.")
-        with open(self.path, "rb") as f:
-            f.seek(self._offset[key])
-            return VineFitResult.from_json(f.readline().decode("utf-8"))
 
 
 def nearest_fit_date(index: pd.DatetimeIndex, date: pd.Timestamp) -> pd.Timestamp:
