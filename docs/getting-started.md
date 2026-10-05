@@ -36,6 +36,8 @@ vine-risk info data/results/demo         # what was done, with which versions an
 vine-risk dashboard --run-dir data/results/demo
 ```
 
+The run was made with `--refit-frequency 5`, so later `update` or `replay` commands on this folder need `--refit-frequency 5` too.
+
 The first command downloads prices (cached in `data/cache/`), fits about 90 vines in parallel, computes the dependence metrics,
 the change scores and the portfolio risk, and prints the time each step took. Press Ctrl+C at any time: progress is saved and the
 same command continues where it stopped.

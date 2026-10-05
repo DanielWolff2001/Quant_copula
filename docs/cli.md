@@ -38,6 +38,10 @@ Useful options: `--last 700` uses only the last 700 days (a quick test); `--step
 **Every step is incremental.** Running the same command again, or after new prices arrived, only does the new work: new fits, new
 scan dates, new risk dates. Extending a run gives exactly the same result as running everything at once (this is tested).
 
+**Overrides must be repeated.** Settings you change on the command line (`--window`, `--refit-frequency`) belong to the run. `update`
+and `replay` accept the same options and must be given the same values; otherwise the safety check below stops them. Putting the
+values in the config file avoids the problem.
+
 **Safety checks.** A run folder remembers how it was made (`manifest.json`). `run` refuses to continue if the fit settings differ
 (for example another window), or if the prices behind the stored fits have changed (a data vendor revised history). The message says
 what differs; use a new `--run-dir` or delete the old one. `--force` skips the checks and is not recommended. A lock file stops two
