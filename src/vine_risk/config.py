@@ -15,10 +15,14 @@ class DataConfig:
     cache_dir: str = "data/cache"
     max_missing_frac: float = 0.05
     max_ffill_days: int = 3
+    source: str = "yahoo"  # "yahoo" or "csv" (see vine_risk.sources)
+    csv_path: str | None = None  # file or folder, when source is "csv"
 
     def __post_init__(self) -> None:
         if self.frequency != "daily":
             raise ValueError("Only daily data is supported.")
+        if self.source not in ("yahoo", "csv"):
+            raise ValueError("data.source must be 'yahoo' or 'csv'.")
 
 
 @dataclass(frozen=True)

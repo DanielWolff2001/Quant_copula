@@ -161,12 +161,16 @@ class LiveMonitor:
         assets: asset names (column order of every observation).
         config: :class:`MonitorConfig`.
         sinks: callables invoked with every :class:`MonitorRecord`.
+        on_fit: optional callable invoked with every new :class:`~vine_risk.copula.VineFitResult` right
+            after it is made (e.g. to append it to a checkpoint file).
     """
 
-    def __init__(self, assets: Sequence[str], config: MonitorConfig, sinks: Sequence[Sink] = ()) -> None:
+    def __init__(self, assets: Sequence[str], config: MonitorConfig, sinks: Sequence[Sink] = (),
+                 on_fit: Callable[[VineFitResult], None] | None = None) -> None:
         self.assets = list(assets)
         self.cfg = config
         self.sinks = list(sinks)
+        self.on_fit = on_fit
         self.model = RollingVineModel(config.window, config.refit_frequency, config.vine_kwargs)
         self.lag = default_lag(config.window, config.refit_frequency)  # in fits
         self.position = -1  # row index of the latest observation
@@ -179,19 +183,20 @@ class LiveMonitor:
 
     # ---- resuming ---------------------------------------------------------------------
     def prime(self, history: pd.DataFrame, results: Sequence[VineFitResult] = (),
-              alert_state: str | None = None) -> None:
+              alert_state: str | None = None, n_fits: int | None = None) -> None:
         """Resume after ``history`` (a full return history, oldest first) without refitting.
 
         ``results`` are the fits already made, e.g. read from a checkpoint; only those on or
         before the last history date are allowed. ``alert_state`` restores the alert flag
-        (default: warming up / normal).
+        (default: warming up / normal). ``n_fits`` is the total number of fits made so far when
+        ``results`` holds only the most recent ones (it keeps the VaR/ES schedule aligned).
         """
         if list(history.columns) != self.assets:
             raise ValueError("History columns do not match the monitor's assets.")
         self.model.prime(history, results)
         self.position = len(history) - 1
         self._returns = history.iloc[-2 * self.cfg.window:].copy()
-        self._n_fits = len(results)
+        self._n_fits = len(results) if n_fits is None else n_fits
         self.model.results = self.model.results[-(self.lag + 2):]
         self.alert_state = alert_state or (NORMAL if len(history) >= 2 * self.cfg.window else WARMING_UP)
 
@@ -232,6 +237,8 @@ class LiveMonitor:
     # ---- internals --------------------------------------------------------------------
     def _on_refit(self, cur: VineFitResult, rec: MonitorRecord) -> None:
         self._n_fits += 1
+        if self.on_fit is not None:
+            self.on_fit(cur)
         rec.refit, rec.fit_status = True, cur.status
         res = self.model.results
         if cur.status != "ok":

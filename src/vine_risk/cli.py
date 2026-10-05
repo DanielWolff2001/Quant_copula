@@ -3,6 +3,8 @@
 ::
 
     vine-risk run [--steps rolling,metrics,changes,risk] [--last N] ...   # the whole pipeline
+    vine-risk update [--dry-run] ...                                      # daily update with the latest prices
+    vine-risk schedule --kind cron|launchd|systemd                        # print a ready-made scheduler entry
     vine-risk replay [--days 120] ...                                     # simulated live monitoring
     vine-risk info [RUN_DIR]                                              # what produced a run folder
     vine-risk dashboard [--run-dir ...]                                   # open the Streamlit dashboard
@@ -21,8 +23,11 @@ from importlib import metadata
 from pathlib import Path
 from typing import Callable, Sequence, TextIO
 
+import pandas as pd
+
 from vine_risk import __version__
 from vine_risk.config import load_config
+from vine_risk.locking import RunLockError, run_lock
 from vine_risk.manifest import ManifestMismatch, lock_hash, read_manifest
 from vine_risk.pipeline import load_prices_and_returns
 from vine_risk.runner import STEPS, default_run_dir, run_pipeline, with_rolling
@@ -63,18 +68,77 @@ class TextProgress:
 def cmd_run(a: argparse.Namespace) -> int:
     cfg = with_rolling(load_config(a.config), window=a.window, refit_frequency=a.refit_frequency, n_jobs=a.n_jobs)
     steps = [s.strip() for s in a.steps.split(",") if s.strip()]
-    _, returns = load_prices_and_returns(cfg)
+    _, returns = load_prices_and_returns(cfg, refresh=a.refresh)
     if a.last:
         returns = returns.iloc[-a.last:]
     run_dir = Path(a.run_dir) if a.run_dir else default_run_dir(cfg)
     print(f"run folder {run_dir} | {len(cfg.assets)} assets | window {cfg.rolling.window}, refit every "
           f"{cfg.rolling.refit_frequency} day(s) | data {returns.index[0].date()} to {returns.index[-1].date()}")
-    timings = run_pipeline(cfg, returns, run_dir, steps, n_jobs=a.n_jobs, scan_step=a.scan_step, n_perm=a.n_perm,
-                           risk_step=a.risk_step, progress=lambda name: TextProgress(name), force=a.force,
-                           command=["vine-risk", *sys.argv[1:]])
+    with run_lock(run_dir):
+        timings = run_pipeline(cfg, returns, run_dir, steps, n_jobs=a.n_jobs, scan_step=a.scan_step, n_perm=a.n_perm,
+                               risk_step=a.risk_step, progress=lambda name: TextProgress(name), force=a.force,
+                               command=["vine-risk", *sys.argv[1:]])
     for name, sec in timings.items():
         print(f"  {name:<8} {sec:7.1f} s")
     print(f"done -> {run_dir}   (see `vine-risk info {run_dir}`; dashboard: `vine-risk dashboard --run-dir {run_dir}`)")
+    return 0
+
+
+def cmd_update(a: argparse.Namespace) -> int:
+    from vine_risk.update import update_run
+
+    cfg = load_config(a.config)
+    overrides = {k: v for k, v in dict(alpha=a.alpha, enter_ratio=a.enter_ratio, exit_ratio=a.exit_ratio).items()
+                 if v is not None}
+    report = update_run(cfg, a.run_dir or default_run_dir(cfg), threads=a.threads, n_jobs=a.n_jobs,
+                        scan_step=a.scan_step, n_perm=a.n_perm, risk_step=a.risk_step,
+                        monitor_overrides=overrides, dry_run=a.dry_run, force=a.force,
+                        today=pd.Timestamp.today().normalize())
+    for alert in report.alerts:
+        print(f"ALERT {alert['date']}: {alert['message']}")
+    return 0
+
+
+def render_schedule(kind: str, command: str, workdir: str | Path, at: str = "23:30", log: str = "data/update.log") -> str:
+    """Text of a scheduler entry that runs ``command`` on weekdays at ``at`` (HH:MM, local time).
+
+    Nothing is installed; copy the text where it belongs (instructions are printed with it).
+    """
+    hh, mm = (int(x) for x in at.split(":"))
+    if not (0 <= hh < 24 and 0 <= mm < 60):
+        raise ValueError(f"bad time {at!r}; use HH:MM")
+    wd = str(workdir)
+    if kind == "cron":
+        return (f"# add with `crontab -e` (times are the machine's local time; adjust to when your data vendor has the day's close)\n"
+                f"{mm} {hh} * * 1-5 cd {wd} && {command} >> {log} 2>&1")
+    if kind == "launchd":
+        days = "".join(f"    <dict><key>Weekday</key><integer>{d}</integer><key>Hour</key><integer>{hh}</integer>"
+                       f"<key>Minute</key><integer>{mm}</integer></dict>\n" for d in range(1, 6))
+        prog = "".join(f"    <string>{x}</string>\n" for x in command.split())
+        return ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+                "<plist version=\"1.0\"><dict>\n  <key>Label</key><string>com.vinerisk.update</string>\n"
+                f"  <key>ProgramArguments</key><array>\n{prog}  </array>\n"
+                f"  <key>WorkingDirectory</key><string>{wd}</string>\n"
+                f"  <key>StartCalendarInterval</key><array>\n{days}  </array>\n"
+                f"  <key>StandardOutPath</key><string>{wd}/{log}</string>\n"
+                f"  <key>StandardErrorPath</key><string>{wd}/{log}</string>\n</dict></plist>\n"
+                "<!-- save as ~/Library/LaunchAgents/com.vinerisk.update.plist, then: launchctl load ~/Library/LaunchAgents/com.vinerisk.update.plist -->")
+    if kind == "systemd":
+        return (f"# /etc/systemd/system/vine-risk-update.service\n[Unit]\nDescription=vine-risk daily update\n\n[Service]\n"
+                f"Type=oneshot\nWorkingDirectory={wd}\nExecStart={command}\n\n"
+                f"# /etc/systemd/system/vine-risk-update.timer\n[Unit]\nDescription=vine-risk daily update\n\n[Timer]\n"
+                f"OnCalendar=Mon..Fri {hh:02d}:{mm:02d}\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n"
+                "# enable with: systemctl enable --now vine-risk-update.timer")
+    raise ValueError(f"unknown scheduler {kind!r}; choose cron, launchd or systemd")
+
+
+def cmd_schedule(a: argparse.Namespace) -> int:
+    import shutil
+
+    exe = shutil.which("vine-risk") or f"{sys.executable} -m vine_risk"
+    cmd = f"{exe} update --config {Path(a.config).resolve()}" + (f" --run-dir {Path(a.run_dir).resolve()}" if a.run_dir else "")
+    print(render_schedule(a.kind, cmd, Path.cwd(), a.at))
     return 0
 
 
@@ -183,6 +247,25 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--n-perm", type=int, default=499, help="permutations per test")
     r.add_argument("--risk-step", type=int, default=5, help="VaR/ES for every N-th fit")
     r.add_argument("--force", action="store_true", help="skip the safety checks on settings and data (not recommended)")
+    r.add_argument("--refresh", action="store_true", help="download the prices again instead of using the cache")
+
+    u = add("update", cmd_update, "daily update: fetch new prices, run the live monitor on them, extend the run folder")
+    u.add_argument("--run-dir", help="results folder to update (default data/results/w<window>)")
+    u.add_argument("--dry-run", action="store_true", help="fetch and check the prices, report what would be done, change nothing")
+    u.add_argument("--force", action="store_true", help="skip the safety checks on settings and data (not recommended)")
+    u.add_argument("--threads", type=int, default=4, help="threads of the vine fitter")
+    u.add_argument("--n-jobs", type=int, help="worker processes for the table updates")
+    u.add_argument("--scan-step", type=int, default=5)
+    u.add_argument("--n-perm", type=int, default=499)
+    u.add_argument("--risk-step", type=int, default=5)
+    u.add_argument("--alpha", type=float, help="significance level for alerts (default 0.01)")
+    u.add_argument("--enter-ratio", type=float, help="alert starts above this multiple of the no-change level (default 2.0)")
+    u.add_argument("--exit-ratio", type=float, help="alert ends below this multiple (default 1.5)")
+
+    sc = add("schedule", cmd_schedule, "print a cron / launchd / systemd entry that runs the daily update (installs nothing)")
+    sc.add_argument("--kind", choices=["cron", "launchd", "systemd"], required=True)
+    sc.add_argument("--at", default="23:30", help="local time, HH:MM (default %(default)s)")
+    sc.add_argument("--run-dir", help="results folder to update")
 
     pl = add("replay", cmd_replay, "simulated live monitoring: replay recent history day by day")
     pl.add_argument("--run-dir", help="results folder to resume from")
@@ -211,7 +294,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         return int(args.func(args) or 0)
-    except (ManifestMismatch, FileNotFoundError, ValueError) as e:
+    except (ManifestMismatch, RunLockError, FileNotFoundError, ValueError, RuntimeError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
     except KeyboardInterrupt:

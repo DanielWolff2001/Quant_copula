@@ -10,11 +10,10 @@ import numpy as np
 import pandas as pd
 
 from vine_risk.config import Config
-from vine_risk.data import clean_prices, download_prices
 from vine_risk.monitor import (
     ConsoleSink, JsonlSink, LiveMonitor, MonitorConfig, alert_state_from_scans, records_to_frame,
 )
-from vine_risk.returns import log_returns
+from vine_risk.pipeline import load_prices_and_returns
 from vine_risk.rolling import load_results
 
 CHECKS = [("dependence_metrics.parquet", "d_t", "m_d_t"), ("dependence_metrics.parquet", "bic", "m_bic"),
@@ -53,9 +52,7 @@ def run_replay(cfg: Config, run: str | Path, *, days: int = 120, start: str | No
                verify: bool = True, out_dir: str | Path | None = None, out: Callable[[str], None] = print) -> pd.DataFrame:
     """Replay recent history through a monitor primed from the saved run; see ``scripts/run_live.py``."""
     run = Path(run)
-    d = cfg.data
-    prices = clean_prices(download_prices(cfg.assets, d.start, d.end, d.cache_dir), d.max_missing_frac, d.max_ffill_days)
-    returns = log_returns(prices)
+    prices, returns = load_prices_and_returns(cfg)
     if end:
         prices, returns = prices.loc[:end], returns.loc[:end]
     first = pd.Timestamp(start) if start else returns.index[-days]

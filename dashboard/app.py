@@ -18,8 +18,7 @@ from vine_risk.config import load_config
 from vine_risk.dashboard_data import (
     CheckpointIndex, alert_periods, load_run, nearest_fit_date, pair_column, prices_from_returns, tau_matrix_at,
 )
-from vine_risk.data import download_prices
-from vine_risk.returns import build_return_matrix
+from vine_risk.pipeline import load_prices_and_returns
 
 CONFIG = os.environ.get("VINE_RISK_CONFIG", "configs/default.yaml")
 RUN_DIR = os.environ.get("VINE_RISK_RUN_DIR", "data/results/w250")
@@ -35,11 +34,8 @@ def chart(fig) -> None:
 @st.cache_data(show_spinner="Loading run ...")
 def get_run(run_dir: str, config_path: str):
     cfg = load_config(config_path)
-    d = cfg.data
     try:  # prices come from the local cache written by the rolling run; optional for the dashboard
-        raw = download_prices(cfg.assets, d.start, d.end, d.cache_dir)
-        returns = build_return_matrix(raw, d.max_missing_frac, d.max_ffill_days)
-        prices = raw.loc[returns.index[0] - pd.Timedelta(days=7):].dropna()
+        prices, returns = load_prices_and_returns(cfg)
     except Exception:
         prices = returns = None
     return load_run(run_dir, prices, returns)

@@ -8,17 +8,22 @@ import pandas as pd
 from vine_risk.config import Config
 from vine_risk.data import clean_prices, download_prices
 from vine_risk.returns import log_returns
+from vine_risk.sources import PriceSource, make_source
 
 
-def load_prices_and_returns(cfg: Config) -> tuple[pd.DataFrame, pd.DataFrame]:
+def load_prices_and_returns(cfg: Config, *, refresh: bool = False,
+                            source: PriceSource | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Download (or read from the cache), clean and convert to log returns.
+
+    ``refresh=True`` downloads again and overwrites the price cache; ``source`` overrides the source
+    selected in the config.
 
     Returns ``(prices, returns)``: the cleaned adjusted prices and the model-ready log-return
     matrix (one row fewer than ``prices``).
     """
     d = cfg.data
-    prices = clean_prices(download_prices(cfg.assets, d.start, d.end, d.cache_dir),
-                          d.max_missing_frac, d.max_ffill_days)
+    raw = download_prices(cfg.assets, d.start, d.end, d.cache_dir, source=source or make_source(d), refresh=refresh)
+    prices = clean_prices(raw, d.max_missing_frac, d.max_ffill_days)
     return prices, log_returns(prices)
 
 
