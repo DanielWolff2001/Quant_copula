@@ -136,3 +136,22 @@ def test_scan_is_skipped_gracefully_on_short_history(returns, tmp_path):
     run_pipeline(CFG, short, tmp_path, steps=["rolling", "changes"], scan_step=10, n_perm=49)
     assert (tmp_path / "structural_change_scores.parquet").is_file() and not (tmp_path / "change_scan.parquet").exists()
     assert "skipped" in read_manifest(tmp_path)["steps"]["changes"]
+
+
+def test_filtered_scan_option_writes_and_extends_a_second_scan(tmp_path):
+    from dataclasses import replace as rep_
+    from vine_risk.synthetic import simulate_garch
+    # data with real volatility clustering: GARCH fits are then well determined and reproducible
+    g, _ = simulate_garch([Regime(160, 0.2), Regime(160, 0.85)], n_assets=3, seed=9)
+    cfg = rep_(CFG, rolling=rep_(CFG.rolling, window=80))
+    run_pipeline(cfg, g.iloc[:260], tmp_path, steps=["rolling", "changes"], scan_step=20, n_perm=29, filtered_scan=True)
+    first = pd.read_parquet(tmp_path / "change_scan_garch.parquet")
+    assert len(first) >= 1
+    run_pipeline(cfg, g, tmp_path, steps=["rolling", "changes"], scan_step=20, n_perm=29, filtered_scan=True)
+    m = read_manifest(tmp_path)["steps"]["changes"]
+    both = pd.read_parquet(tmp_path / "change_scan_garch.parquet")
+    assert len(both) > len(first) and m["filtered_new_dates"] == len(both) - len(first)
+    full = tmp_path.parent / "full_filtered"
+    run_pipeline(cfg, g, full, steps=["rolling", "changes"], scan_step=20, n_perm=29, filtered_scan=True)
+    pd.testing.assert_frame_equal(pd.read_parquet(full / "change_scan_garch.parquet"), both)  # extending == all at once
+    assert "p_tau_fdr0.01" in both.columns

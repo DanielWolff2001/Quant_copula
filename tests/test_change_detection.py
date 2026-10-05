@@ -168,3 +168,23 @@ def test_scores_react_to_known_change_with_disjoint_lag_only(fit_results):
     # one-step comparisons of overlapping windows are far smaller than the disjoint-window shift
     assert s_one["s_tau"].max() < 0.5 * post["s_tau"].max()
     assert s_far["structural_change_score"].equals(s_far["s_tau"])
+
+
+# ---- GARCH-filtered scan ---------------------------------------------------------------
+from vine_risk.change_detection import change_scan_filtered
+from vine_risk.garch import GarchMarginal
+from vine_risk.synthetic import simulate_garch
+
+
+def test_filtered_scan_equals_the_manual_computation_and_extends():
+    r, _ = simulate_garch([Regime(180, 0.3), Regime(180, 0.8)], n_assets=3, seed=3)
+    W = 100
+    scan = change_scan_filtered(r, W, step=40, n_perm=29, block=10, seed=1)
+    t = 2 * W - 1
+    z = GarchMarginal().fit(r.iloc[t - 2 * W + 1: t + 1]).standardised_residuals().to_numpy()
+    assert scan.iloc[0].to_dict() == two_window_change_test(z, W, 29, 0.1, 1, 10)  # the first scan date, by hand
+    tail = change_scan_filtered(r, W, step=40, n_perm=29, block=10, seed=1, after=scan.index[1])
+    pd.testing.assert_frame_equal(scan.loc[scan.index > scan.index[1]], tail)
+    assert scan["p_tau"].iloc[-1] <= 0.1  # the residuals still carry the (large) change of correlation 0.3 -> 0.8
+    with pytest.raises(ValueError, match="at least"):
+        change_scan_filtered(r.iloc[:150], W)

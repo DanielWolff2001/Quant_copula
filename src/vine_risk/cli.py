@@ -79,7 +79,7 @@ def cmd_run(a: argparse.Namespace) -> int:
     with run_lock(run_dir):
         timings = run_pipeline(cfg, returns, run_dir, steps, n_jobs=a.n_jobs, scan_step=a.scan_step, n_perm=a.n_perm,
                                risk_step=a.risk_step, progress=lambda name: TextProgress(name), force=a.force,
-                               command=["vine-risk", *sys.argv[1:]])
+                               command=["vine-risk", *sys.argv[1:]], filtered_scan=a.filtered_scan)
     for name, sec in timings.items():
         print(f"  {name:<8} {sec:7.1f} s")
     print(f"done -> {run_dir}   (see `vine-risk info {run_dir}`; dashboard: `vine-risk dashboard --run-dir {run_dir}`)")
@@ -280,6 +280,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--n-perm", type=int, default=499, help="permutations per test")
     r.add_argument("--risk-step", type=int, default=5, help="VaR/ES for every N-th fit")
     r.add_argument("--force", action="store_true", help="skip the safety checks on settings and data (not recommended)")
+    r.add_argument("--filtered-scan", action="store_true", help="also run the change scan on GARCH-filtered residuals (change_scan_garch.parquet)")
     r.add_argument("--refresh", action="store_true", help="download the prices again instead of using the cache")
 
     u = add("update", cmd_update, "daily update: fetch new prices, run the live monitor on them, extend the run folder")

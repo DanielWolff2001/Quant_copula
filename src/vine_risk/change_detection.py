@@ -333,3 +333,32 @@ def benjamini_hochberg(p: pd.Series, alpha: float = 0.05) -> pd.Series:
         rej[order[:k]] = True
         out[ok] = rej
     return pd.Series(out, index=p.index, name=f"{p.name}_fdr")
+
+
+def change_scan_filtered(
+    returns: pd.DataFrame, window: int, step: int = 5, n_perm: int = 499, q: float = 0.1, seed: int = 0,
+    block: int = 10, innovations: str = "t", after: pd.Timestamp | None = None,
+    progress: Callable[[int, int], None] | None = None,
+) -> pd.DataFrame:
+    """The permutation scan of :func:`change_scan`, applied to **GARCH-filtered** residuals.
+
+    A change in volatility can look like a change in dependence (for instance when a market-wide shock
+    moves all assets at once). To ask about dependence alone, a GARCH(1,1) is fitted to every asset over
+    the last ``2 * window`` days at each scan date; the two windows compared are the halves of the
+    resulting standardised-residual matrix. Same grid, columns and conventions as `change_scan`.
+    """
+    from vine_risk.garch import GarchMarginal
+
+    if len(returns) < 2 * window:
+        raise ValueError(f"Need at least {2 * window} observations, got {len(returns)}.")
+    grid = [t for t in range(2 * window - 1, len(returns), step) if after is None or returns.index[t] > after]
+    rows = {}
+    for i, t in enumerate(grid, start=1):
+        x = returns.iloc[t - 2 * window + 1: t + 1]
+        z = GarchMarginal(innovations=innovations).fit(x).standardised_residuals().to_numpy()
+        rows[returns.index[t]] = two_window_change_test(z, window, n_perm, q, seed, block)
+        if progress:
+            progress(i, len(grid))
+    out = pd.DataFrame.from_dict(rows, orient="index")
+    out.index.name = "timestamp"
+    return out

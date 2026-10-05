@@ -23,7 +23,9 @@ from typing import Callable, Sequence
 import numpy as np
 import pandas as pd
 
-from vine_risk.change_detection import benjamini_hochberg, change_scan, default_lag, structural_change_scores
+from vine_risk.change_detection import (
+    benjamini_hochberg, change_scan, change_scan_filtered, default_lag, structural_change_scores,
+)
 from vine_risk.config import Config
 from vine_risk.copula import VineFitResult
 from vine_risk.dependence import dependence_metrics, pairwise_series
@@ -107,11 +109,14 @@ def add_fdr_flags(scan: pd.DataFrame, alpha: float = 0.01) -> pd.DataFrame:
 
 def detect_changes(cfg: Config, returns: pd.DataFrame, run_dir: str | Path, *, step: int = 5, n_perm: int = 499,
                    q: float = 0.1, block: int = 10, alpha: float = 0.01, progress: Progress | None = None,
-                   results: Sequence[VineFitResult] | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+                   results: Sequence[VineFitResult] | None = None, filtered: bool = False,
+                   ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Change scores (from the fits) and the permutation-test scan (from the returns).
 
     The scores are recomputed (cheap); the scan is **extended** from its last stored date when the
     stored one was made with the same settings, otherwise recomputed. Returns ``(scores, scan)``.
+    With ``filtered=True`` a second scan on GARCH-filtered residuals is made too (about 5 minutes for
+    20 years) and stored as ``change_scan_garch.parquet``; it is not part of the return value.
     """
     run_dir = Path(run_dir)
     t0 = time.time()
@@ -138,8 +143,24 @@ def detect_changes(cfg: Config, returns: pd.DataFrame, run_dir: str | Path, *, s
     scan = pd.concat([base, new]) if base is not None and not new.empty else (base if base is not None else new)
     scan = add_fdr_flags(scan, alpha)
     scan.to_parquet(path)
-    _timed(run_dir, "changes", {"settings": settings, "scan_dates": len(scan), "new_scan_dates": len(new)}, t0)
+    extra = _extend_filtered_scan(cfg, returns, run_dir, settings, alpha, progress) if filtered else {}
+    _timed(run_dir, "changes", {"settings": settings, "scan_dates": len(scan), "new_scan_dates": len(new), **extra}, t0)
     return scores, scan
+
+
+def _extend_filtered_scan(cfg, returns, run_dir: Path, settings: dict, alpha: float, progress) -> dict:
+    """Make or extend ``change_scan_garch.parquet`` (same settings as the raw scan, GARCH-filtered residuals)."""
+    path = run_dir / "change_scan_garch.parquet"
+    old = read_manifest(run_dir)
+    same = old is not None and old.get("steps", {}).get("changes", {}).get("filtered_settings") == settings
+    stored = _read_table(path) if same and path.is_file() else None
+    new = change_scan_filtered(returns, settings["window"], settings["step"], settings["n_perm"], settings["q"],
+                               settings["seed"], settings["block"], after=None if stored is None else stored.index.max(),
+                               progress=progress)
+    base = stored[[c for c in stored.columns if "_fdr" not in c]] if stored is not None else None
+    scan = pd.concat([base, new]) if base is not None and not new.empty else (base if base is not None else new)
+    add_fdr_flags(scan, alpha).to_parquet(path)
+    return {"filtered_settings": settings, "filtered_scan_dates": len(scan), "filtered_new_dates": len(new)}
 
 
 def _fit_spacing(results: Sequence[VineFitResult], returns: pd.DataFrame) -> int:
@@ -192,7 +213,7 @@ def _read_table(path: Path) -> pd.DataFrame:
 def run_pipeline(cfg: Config, returns: pd.DataFrame, run_dir: str | Path, steps: Sequence[str] = STEPS, *,
                  n_jobs: int | None = None, scan_step: int = 5, n_perm: int = 499, risk_step: int = 5,
                  progress: Callable[[str], Progress | None] | None = None, force: bool = False,
-                 command: Sequence[str] | None = None) -> dict[str, float]:
+                 command: Sequence[str] | None = None, filtered_scan: bool = False) -> dict[str, float]:
     """Run the chosen steps in order and return the seconds each took.
 
     ``progress(step_name)`` may return a ``progress(done, total)`` callback for that step.
@@ -215,7 +236,8 @@ def run_pipeline(cfg: Config, returns: pd.DataFrame, run_dir: str | Path, steps:
             if name == "metrics":
                 compute_metrics(run_dir, results)
             elif name == "changes":
-                detect_changes(cfg, returns, run_dir, step=scan_step, n_perm=n_perm, progress=cb(name), results=results)
+                detect_changes(cfg, returns, run_dir, step=scan_step, n_perm=n_perm, progress=cb(name), results=results,
+                               filtered=filtered_scan)
             elif name == "risk":
                 compute_risk(cfg, returns, run_dir, step=risk_step, n_jobs=n_jobs, results=results)
         timings[name] = time.time() - t0
