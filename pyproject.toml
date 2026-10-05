@@ -19,6 +19,7 @@ dependencies = [
     "pyyaml",
     "yfinance",
     "pyvinecopulib",
+    "arch",
     "networkx",
 ]
 

@@ -24,6 +24,8 @@ rolling:
   n_jobs: 4                   # worker processes for the batch run
   tail_simulations: 16384     # simulated points for model-implied tail dependence
   tail_level: 0.05            # q in "probability that both are in the worst q, given that one is"
+  marginal: empirical         # empirical (ranks) | garch_t | garch_empirical  (GARCH(1,1)-filtered)
+  marginal_lookback: null     # history the marginal is fitted on (null: window; GARCH: 1000)
 
 risk:
   confidence_level: 0.99
@@ -36,8 +38,27 @@ risk:
 
 These define the *fits*, and a run folder can only be extended with the same values (see [Reproducibility](reproducibility.md)):
 `assets`, `window`, `refit_frequency`, `truncation_level`, `selection_criterion`, `tail_simulations`, `tail_level`, `seed`,
-`max_missing_frac`, `max_ffill_days`. Everything else (`confidence_level`, `weights`, risk `simulations`, `n_jobs`, the scan options)
+`marginal`, `marginal_lookback`, `max_missing_frac`, `max_ffill_days`. Everything else (`confidence_level`, `weights`, risk `simulations`, `n_jobs`, the scan options)
 only affects what is computed *from* the fits.
+
+## Marginal models
+
+The copula describes dependence between *uniform* numbers, so each asset's returns first go through a marginal model.
+
+| `marginal` | What it does |
+|------------|--------------|
+| `empirical` (default) | the rank transform of the window; no model, robust |
+| `garch_t` | a GARCH(1,1) with Student-t innovations per asset; the copula is fitted to the PIT of the standardised residuals |
+| `garch_empirical` | the same GARCH(1,1), with the empirical distribution of its residuals instead of a Student-t |
+
+GARCH filtering removes volatility clustering, so the copula describes dependence between *shocks* rather than a mixture of
+dependence and market volatility. GARCH parameters are poorly determined by 250 observations, so the marginal is fitted on a longer
+history (`marginal_lookback`, default 1000 days) while the vine is still fitted to the last `window` days. The first fit is then
+possible only after `marginal_lookback` days. If a GARCH fit fails for an asset, that asset falls back to a RiskMetrics (EWMA)
+volatility and the fit is recorded as such.
+
+Scenarios drawn through a GARCH marginal are forecasts for **tomorrow given today's volatility**, while rank marginals describe the
+window's unconditional distribution; this matters for risk numbers (see [Risk model comparison](benchmarks.md)).
 
 ## Environment variables
 

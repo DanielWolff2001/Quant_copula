@@ -5,7 +5,7 @@ they do; the order follows the pipeline.
 
 | Page | Modules |
 |------|---------|
-| [Data and marginals](data.md) | `config`, `sources`, `data`, `returns`, `marginals`, `pipeline` |
+| [Data and marginals](data.md) | `config`, `sources`, `data`, `returns`, `marginals`, `garch`, `pipeline` |
 | [Models and rolling fits](models.md) | `copula`, `dependence`, `rolling` |
 | [Change detection, risk, validation](analysis.md) | `change_detection`, `portfolio`, `synthetic`, `validation` |
 | [Operations](operations.md) | `runner`, `update`, `monitor`, `replay`, `manifest`, `locking`, `cli` |

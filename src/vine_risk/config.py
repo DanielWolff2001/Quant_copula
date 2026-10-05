@@ -34,6 +34,8 @@ class RollingConfig:
     n_jobs: int = 1  # worker processes used by RollingVineModel.run
     tail_simulations: int = 16384  # Sobol points for model-implied pairwise dependence
     tail_level: float = 0.05  # q of the finite-level tail coefficients
+    marginal: str = "empirical"  # "empirical" (ranks), "garch_t" or "garch_empirical" (GARCH-filtered)
+    marginal_lookback: int | None = None  # observations the marginal is fitted on (None: window; GARCH: 1000)
 
     def __post_init__(self) -> None:
         if self.window < 2:
@@ -42,6 +44,18 @@ class RollingConfig:
             raise ValueError("rolling.refit_frequency must be >= 1")
         if self.n_jobs < 1:
             raise ValueError("rolling.n_jobs must be >= 1")
+        if self.marginal not in ("empirical", "garch_t", "garch_empirical"):
+            raise ValueError("rolling.marginal must be 'empirical', 'garch_t' or 'garch_empirical'")
+        if self.lookback < self.window:
+            raise ValueError("rolling.marginal_lookback must be >= rolling.window")
+
+    @property
+    def lookback(self) -> int:
+        """Observations the marginal model is fitted on. GARCH parameters are poorly determined by a
+        short window, so GARCH marginals default to 1000 observations; the copula still uses ``window``."""
+        if self.marginal_lookback is not None:
+            return self.marginal_lookback
+        return self.window if self.marginal == "empirical" else max(self.window, 1000)
 
 
 @dataclass(frozen=True)

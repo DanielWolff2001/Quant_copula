@@ -28,7 +28,7 @@ from vine_risk.locking import run_lock
 from vine_risk.manifest import ManifestMismatch, check_resume, read_manifest, verify_history_unchanged
 from vine_risk.monitor import ConsoleSink, JsonlSink, LiveMonitor, MonitorConfig, alert_state_from_scans
 from vine_risk.returns import log_returns
-from vine_risk.rolling import CheckpointIndex
+from vine_risk.rolling import CheckpointIndex, RollingVineModel
 from vine_risk.runner import run_pipeline
 from vine_risk.sources import PriceSource, make_source
 
@@ -107,7 +107,8 @@ def _update(cfg, run_dir: Path, source, threads, n_jobs, scan_step, n_perm, risk
 
     # 2. is the history behind the stored fits unchanged?
     if not force:
-        verify_history_unchanged(latest, returns)
+        model = RollingVineModel.from_config(cfg)
+        verify_history_unchanged(latest, returns, marginal_factory=model.marginal_factory, lookback=model.lookback)
     # Resume after the last price the pipeline processed. With a refit frequency above 1 that is later
     # than the last fit; days in between were seen (and logged) before and must not be handled again.
     manifest = read_manifest(run_dir)

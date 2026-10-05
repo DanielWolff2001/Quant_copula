@@ -26,7 +26,7 @@ import pandas as pd
 
 from vine_risk.config import Config
 from vine_risk.copula import VineCopula, VineFitError, VineFitResult
-from vine_risk.marginals import EmpiricalMarginal, Marginal
+from vine_risk.marginals import EmpiricalMarginal, Marginal, MarginalSpec
 
 logger = logging.getLogger(__name__)
 
@@ -37,19 +37,29 @@ def fit_window(
     returns: pd.DataFrame,
     vine_kwargs: dict | None = None,
     marginal_factory: MarginalFactory = EmpiricalMarginal,
+    copula_window: int | None = None,
 ) -> VineFitResult:
     """Fit marginals and a vine on one window; never raises for model failures.
+
+    The marginal model is fitted on all of ``returns``; the vine is fitted to the last ``copula_window``
+    rows (all of them if ``None``), transformed to uniforms by that marginal. Using a longer history for
+    the marginal than for the copula is what GARCH filtering needs. The result's window and
+    observation count describe the copula window.
 
     A failed fit is returned as a ``VineFitResult`` with ``status == "failed"``.
     Invalid input (e.g. NaNs) still raises ``ValueError``.
     """
+    if copula_window is not None and len(returns) < copula_window:
+        raise ValueError(f"Need at least {copula_window} observations, got {len(returns)}.")
+    full = returns
+    returns = returns if copula_window is None else returns.iloc[-copula_window:]
     idx = returns.index
     meta = {}
     if isinstance(idx, pd.DatetimeIndex):
         meta = dict(window_start=str(idx[0].date()), window_end=str(idx[-1].date()),
                     timestamp=str(idx[-1].date()))
     try:
-        u = marginal_factory().fit_transform(returns)
+        u = marginal_factory().fit(full).transform(returns)
         return VineCopula(**(vine_kwargs or {})).fit(u, returns).summary()
     except VineFitError as e:
         logger.warning("Vine fit failed at %s: %s", meta.get("timestamp"), e)
@@ -64,10 +74,13 @@ class RollingVineModel:
     """Rolling vine copula estimator.
 
     Args:
-        window: number of observations per fit.
+        window: number of observations the vine is fitted on.
         refit_frequency: refit every this many new observations (1 = daily).
         vine_kwargs: keyword arguments for `VineCopula`.
-        marginal_factory: zero-argument callable returning a fresh `Marginal`.
+        marginal_factory: zero-argument callable returning a fresh `Marginal` (see `MarginalSpec`).
+        marginal_lookback: observations the marginal is fitted on (at least ``window``; default
+            ``window``). GARCH marginals need a longer history than the copula; the first fit is then
+            possible only after ``marginal_lookback`` observations.
     """
 
     def __init__(
@@ -76,11 +89,15 @@ class RollingVineModel:
         refit_frequency: int = 1,
         vine_kwargs: dict | None = None,
         marginal_factory: MarginalFactory = EmpiricalMarginal,
+        marginal_lookback: int | None = None,
     ) -> None:
         if window < 2:
             raise ValueError("window must be >= 2")
         if refit_frequency < 1:
             raise ValueError("refit_frequency must be >= 1")
+        if marginal_lookback is not None and marginal_lookback < window:
+            raise ValueError("marginal_lookback must be >= window")
+        self.lookback = marginal_lookback or window
         self.window = window
         self.refit_frequency = refit_frequency
         self.vine_kwargs = dict(vine_kwargs or {})
@@ -94,6 +111,7 @@ class RollingVineModel:
         r = cfg.rolling
         return cls(
             window=r.window, refit_frequency=r.refit_frequency,
+            marginal_factory=MarginalSpec(r.marginal), marginal_lookback=r.lookback,
             vine_kwargs=dict(selection_criterion=r.selection_criterion,
                              truncation_level=r.truncation_level,
                              tail_simulations=r.tail_simulations, tail_level=r.tail_level,
@@ -113,25 +131,25 @@ class RollingVineModel:
                 raise ValueError("Observation columns do not match the window.")
             if timestamp <= self._buffer.index[-1]:
                 raise ValueError(f"Timestamp {timestamp} is not after {self._buffer.index[-1]}.")
-            self._buffer = pd.concat([self._buffer, new]).iloc[-self.window:]
+            self._buffer = pd.concat([self._buffer, new]).iloc[-self.lookback:]
         self._since_fit += 1
 
     @property
     def ready(self) -> bool:
-        return self._buffer is not None and len(self._buffer) >= self.window
+        return self._buffer is not None and len(self._buffer) >= self.lookback
 
     def prime(self, history: pd.DataFrame, results: Sequence[VineFitResult] = ()) -> None:
         """Restore state to resume after ``history`` (e.g. from a checkpoint) without refitting.
 
-        The window becomes the last ``window`` rows of ``history``; ``results`` are the fits
+        The buffer becomes the last ``lookback`` rows of ``history``; ``results`` are the fits
         already made (oldest first). The next refit happens when ``refit_frequency``
         observations have passed since the last fit, exactly as if the model had run live.
         """
-        if len(history) < self.window:
-            raise ValueError(f"Need at least {self.window} rows of history, got {len(history)}.")
+        if len(history) < self.lookback:
+            raise ValueError(f"Need at least {self.lookback} rows of history, got {len(history)}.")
         if results and pd.Timestamp(results[-1].timestamp) > history.index[-1]:
             raise ValueError("Results extend beyond the supplied history (look-ahead).")
-        self._buffer = history.iloc[-self.window:].copy()
+        self._buffer = history.iloc[-self.lookback:].copy()
         self.results = list(results)
         if results:
             last = pd.Timestamp(results[-1].timestamp)
@@ -149,8 +167,8 @@ class RollingVineModel:
     def refit(self) -> VineFitResult:
         """Fit on the current window and record the result."""
         if not self.ready:
-            raise RuntimeError(f"Window not full ({0 if self._buffer is None else len(self._buffer)}/{self.window}).")
-        res = fit_window(self._buffer, self.vine_kwargs, self.marginal_factory)
+            raise RuntimeError(f"Window not full ({0 if self._buffer is None else len(self._buffer)}/{self.lookback}).")
+        res = fit_window(self._buffer, self.vine_kwargs, self.marginal_factory, self.window)
         self.results.append(res)
         self._since_fit = 0
         return res
@@ -163,7 +181,7 @@ class RollingVineModel:
     # ---- batch replay ------------------------------------------------------
     def refit_positions(self, n_obs: int) -> list[int]:
         """Row positions (window end) at which a batch run refits."""
-        return list(range(self.window - 1, n_obs, self.refit_frequency))
+        return list(range(self.lookback - 1, n_obs, self.refit_frequency))
 
     def run(
         self,
@@ -186,15 +204,15 @@ class RollingVineModel:
             raise TypeError("returns must have a DatetimeIndex.")
         if returns.isna().any().any():
             raise ValueError("returns contain missing values.")
-        if len(returns) < self.window:
-            raise ValueError(f"Need at least {self.window} observations, got {len(returns)}.")
+        if len(returns) < self.lookback:
+            raise ValueError(f"Need at least {self.lookback} observations, got {len(returns)}.")
 
         positions = self.refit_positions(len(returns))
         done = _read_checkpoint(checkpoint) if checkpoint else {}
         todo = [p for p in positions if str(returns.index[p].date()) not in done]
         logger.info("Rolling fit: %d windows, %d already done", len(positions), len(positions) - len(todo))
 
-        tasks = [(returns.iloc[p - self.window + 1: p + 1], self.vine_kwargs, self.marginal_factory)
+        tasks = [(returns.iloc[p - self.lookback + 1: p + 1], self.vine_kwargs, self.marginal_factory, self.window)
                  for p in todo]
         if n_jobs > 1 and tasks:
             with ProcessPoolExecutor(max_workers=n_jobs) as ex:

@@ -95,3 +95,37 @@ def uniformity_report(u: pd.DataFrame) -> pd.DataFrame:
         {"ks_stat": {c: r.statistic for c, r in rows.items()},
          "p_value": {c: r.pvalue for c, r in rows.items()}}
     )
+
+
+MARGINAL_KINDS = ("empirical", "garch_t", "garch_empirical")
+
+
+class MarginalSpec:
+    """A picklable zero-argument factory for a marginal model, chosen by name.
+
+    ``"empirical"`` is the rank transform, ``"garch_t"`` a GARCH(1,1) with Student-t innovations and
+    ``"garch_empirical"`` a GARCH(1,1) with the empirical distribution of its residuals. Instances are
+    callable (``spec()`` returns a fresh, unfitted marginal) and survive being sent to worker processes,
+    which a lambda would not.
+    """
+
+    def __init__(self, kind: str = "empirical") -> None:
+        if kind not in MARGINAL_KINDS:
+            raise ValueError(f"Unknown marginal {kind!r}; choose from {MARGINAL_KINDS}.")
+        self.kind = kind
+
+    def __call__(self) -> Marginal:
+        if self.kind == "empirical":
+            return EmpiricalMarginal()
+        from vine_risk.garch import GarchMarginal  # imported lazily: needs the optional arch dependency
+
+        return GarchMarginal(innovations="t" if self.kind == "garch_t" else "empirical")
+
+    def __repr__(self) -> str:
+        return f"MarginalSpec({self.kind!r})"
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, MarginalSpec) and other.kind == self.kind
+
+    def __hash__(self) -> int:
+        return hash(self.kind)

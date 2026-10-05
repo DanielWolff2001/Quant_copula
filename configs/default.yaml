@@ -18,6 +18,8 @@ rolling:
   n_jobs: 4                  # worker processes for batch runs
   tail_simulations: 16384    # simulated points for model-implied tail dependence
   tail_level: 0.05           # q in lambda_L(q) = P(U2<q | U1<q)
+  marginal: empirical        # empirical | garch_t | garch_empirical  (GARCH(1,1)-filtered marginals)
+  marginal_lookback: null    # history the marginal is fitted on (null: window; GARCH: 1000)
 
 risk:
   confidence_level: 0.99

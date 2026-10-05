@@ -57,6 +57,7 @@ def fit_fingerprint(cfg: Config) -> dict[str, Any]:
         "assets": list(cfg.assets), "window": r.window, "refit_frequency": r.refit_frequency,
         "truncation_level": r.truncation_level, "selection_criterion": r.selection_criterion,
         "tail_simulations": r.tail_simulations, "tail_level": r.tail_level, "seed": cfg.risk.seed,
+        "marginal": r.marginal, "marginal_lookback": r.lookback,
         "max_missing_frac": d.max_missing_frac, "max_ffill_days": d.max_ffill_days,
     }
 
@@ -153,7 +154,10 @@ def check_resume(run_dir: str | Path, cfg: Config) -> list[str]:
     old = read_manifest(run_dir)
     if old is None:
         return []
-    was, now = old.get("fit_fingerprint", {}), fit_fingerprint(cfg)
+    was, now = dict(old.get("fit_fingerprint", {})), fit_fingerprint(cfg)
+    # runs made before GARCH marginals existed used rank marginals fitted on the window itself
+    was.setdefault("marginal", "empirical")
+    was.setdefault("marginal_lookback", was.get("window"))
     diffs = [f"{k}: stored {was.get(k)!r}, now {now.get(k)!r}" for k in sorted(set(was) | set(now))
              if was.get(k) != now.get(k)]
     if diffs:
@@ -164,10 +168,12 @@ def check_resume(run_dir: str | Path, cfg: Config) -> list[str]:
     return []
 
 
-def verify_history_unchanged(result: VineFitResult, returns: pd.DataFrame, tol: float = 1e-9) -> None:
+def verify_history_unchanged(result: VineFitResult, returns: pd.DataFrame, tol: float = 1e-9,
+                             marginal_factory=None, lookback: int | None = None) -> None:
     """Check that the data behind a stored fit is unchanged.
 
-    Recomputes the empirical Kendall's tau of the stored fit's window from ``returns`` and
+    Recomputes the Kendall's tau of the stored fit's pseudo-observations from ``returns`` (with the same
+    marginal model and lookback as the fit; default: rank marginals on the window) and
     compares with the stored values. Prices from a data vendor can be revised (a split or
     dividend adjustment rescales history), which would make stored fits stale.
     Raises `ManifestMismatch` on a difference.
@@ -177,7 +183,12 @@ def verify_history_unchanged(result: VineFitResult, returns: pd.DataFrame, tol: 
         raise ManifestMismatch(f"Stored fit dated {ts.date()} has no matching return observation.")
     end = returns.index.get_loc(ts)
     window = returns.iloc[end - result.n_obs + 1: end + 1]
-    now = pairwise_dependence(EmpiricalMarginal().fit_transform(window)).set_index(["asset_i", "asset_j"]).tau
+    factory = marginal_factory or EmpiricalMarginal
+    need = lookback or result.n_obs
+    history = returns.iloc[max(0, end - need + 1): end + 1]
+    if len(history) < need:
+        raise ManifestMismatch(f"Not enough history before {ts.date()} to verify the stored fit.")
+    now = pairwise_dependence(factory().fit(history).transform(window)).set_index(["asset_i", "asset_j"]).tau
     stored = pd.DataFrame(result.pairwise).set_index(["asset_i", "asset_j"]).tau
     err = float((now - stored).abs().max())
     if not err <= tol:

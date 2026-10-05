@@ -65,16 +65,16 @@ def fit_rolling(cfg: Config, returns: pd.DataFrame, run_dir: str | Path, *, n_jo
     run_dir = Path(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     ckpt = run_dir / "checkpoint.jsonl"
+    model = RollingVineModel.from_config(cfg)
     if not force:
         check_resume(run_dir, cfg)
         if ckpt.is_file():
             latest = CheckpointIndex(ckpt).latest()
             if latest is not None:
-                verify_history_unchanged(latest, returns)
+                verify_history_unchanged(latest, returns, marginal_factory=model.marginal_factory, lookback=model.lookback)
     write_manifest(run_dir, build_manifest(cfg, returns, command))
     t0 = time.time()
-    results = RollingVineModel.from_config(cfg).run(returns, n_jobs=n_jobs or cfg.rolling.n_jobs,
-                                                    checkpoint=ckpt, progress=progress)
+    results = model.run(returns, n_jobs=n_jobs or cfg.rolling.n_jobs, checkpoint=ckpt, progress=progress)
     save_results(results, run_dir)
     failed = sum(r.status != "ok" for r in results)
     _timed(run_dir, "rolling", {"fits": len(results), "failed": failed,

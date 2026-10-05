@@ -5,6 +5,10 @@ All notable changes to this project. The format follows [Keep a Changelog](https
 ## [Unreleased]
 
 ### Added
+- GARCH-filtered marginals (`GarchMarginal`, config `rolling.marginal: garch_t | garch_empirical`): a GARCH(1,1) per asset fitted on a longer
+  lookback than the copula window, with the copula fitted to the PIT of the standardised residuals; scenarios through it are
+  one-day-ahead conditional forecasts. Run manifests include the marginal, and runs made before it existed remain compatible.
+- `simulate_garch`: synthetic returns with GARCH volatility and copula-linked Student-t innovations (known truth).
 - `vine-risk` command line (`run`, `update`, `schedule`, `replay`, `info`, `dashboard`) and `python -m vine_risk`.
 - Daily update (`vine-risk update`): fetches new prices, checks them, processes each new day through the live monitor, extends the
   run folder incrementally; `--dry-run`; scheduler entries for cron, launchd and systemd via `vine-risk schedule`.

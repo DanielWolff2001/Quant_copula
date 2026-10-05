@@ -35,6 +35,7 @@ from vine_risk.config import Config
 from vine_risk.copula import VineFitResult
 from vine_risk.dependence import dependence_metrics, pairwise_series
 from vine_risk.portfolio import window_risk
+from vine_risk.marginals import MarginalSpec
 from vine_risk.rolling import RollingVineModel
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,8 @@ class MonitorConfig:
     window: int = 250
     refit_frequency: int = 1
     vine_kwargs: dict = field(default_factory=dict)
+    marginal: str = "empirical"  # see MarginalSpec
+    marginal_lookback: int | None = None  # None: window
     scan_step: int = 5  # run the permutation test every N observations
     n_perm: int = 199
     scan_q: float = 0.1  # level of the empirical tail coefficients in the test
@@ -76,7 +79,7 @@ class MonitorConfig:
     def from_config(cls, cfg: Config, **overrides: Any) -> "MonitorConfig":
         r = cfg.rolling
         kw: dict[str, Any] = dict(
-            window=r.window, refit_frequency=r.refit_frequency,
+            window=r.window, refit_frequency=r.refit_frequency, marginal=r.marginal, marginal_lookback=r.lookback,
             vine_kwargs=dict(selection_criterion=r.selection_criterion, truncation_level=r.truncation_level,
                              tail_simulations=r.tail_simulations, tail_level=r.tail_level, seed=cfg.risk.seed),
             risk_alpha=cfg.risk.confidence_level, risk_sims=cfg.risk.simulations, seed=cfg.risk.seed,
@@ -171,7 +174,8 @@ class LiveMonitor:
         self.cfg = config
         self.sinks = list(sinks)
         self.on_fit = on_fit
-        self.model = RollingVineModel(config.window, config.refit_frequency, config.vine_kwargs)
+        self.model = RollingVineModel(config.window, config.refit_frequency, config.vine_kwargs,
+                                      MarginalSpec(config.marginal), config.marginal_lookback)
         self.lag = default_lag(config.window, config.refit_frequency)  # in fits
         self.position = -1  # row index of the latest observation
         self.alert_state = WARMING_UP

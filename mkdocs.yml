@@ -41,6 +41,7 @@ nav:
       - How it fits together: architecture.md
       - Detecting structural change: methodology.md
       - Validation study: validation.md
+      - Risk model comparison: benchmarks.md
       - Reproducibility: reproducibility.md
   - Reference:
       - Configuration: configuration.md

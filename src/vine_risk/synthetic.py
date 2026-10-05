@@ -76,3 +76,35 @@ def simulate_regimes(
         x = x * np.exp(h)[:, None]
     idx = pd.bdate_range(start, periods=len(x))
     return pd.DataFrame(x, index=idx, columns=[f"X{i + 1}" for i in range(n_assets)])
+
+
+def simulate_garch(
+    regimes: list[Regime], n_assets: int = 4, seed: int = 0, start: str = "2010-01-04", omega: float = 0.02,
+    alpha: float = 0.08, beta: float = 0.90, nu: float = 6.0,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Returns with GARCH(1,1) volatility and copula-linked Student-t innovations; known truth.
+
+    Each asset follows ``r_t = sigma_t * e_t``, ``sigma_t^2 = omega + alpha r_{t-1}^2 + beta sigma_{t-1}^2``
+    (``omega`` in percent-squared; the default gives a 1 % daily unconditional volatility), where the
+    innovations ``e_t`` have unit variance, a Student-t distribution with ``nu`` degrees of freedom, and
+    the dependence structure given by ``regimes`` (the same equicorrelated copulas as
+    :func:`simulate_regimes`).
+
+    Returns ``(returns, sigma)``: the return matrix (decimal) and the true conditional volatility, whose
+    row ``t`` is the volatility *of* ``r_t`` (known one step earlier).
+    """
+    if not (alpha >= 0 and beta >= 0 and alpha + beta < 1 and omega > 0 and nu > 2):
+        raise ValueError("Need omega > 0, alpha, beta >= 0, alpha + beta < 1 and nu > 2.")
+    u = stats.norm.cdf(simulate_regimes(regimes, n_assets, seed, start, vol=1.0).to_numpy())
+    e = stats.t.ppf(u, nu) / np.sqrt(nu / (nu - 2))
+    n = len(e)
+    var = np.empty((n, n_assets))
+    r = np.empty((n, n_assets))
+    var[0] = omega / (1 - alpha - beta)
+    for t in range(n):
+        if t:
+            var[t] = omega + alpha * r[t - 1] ** 2 + beta * var[t - 1]
+        r[t] = np.sqrt(var[t]) * e[t]
+    idx = pd.bdate_range(start, periods=n)
+    cols = [f"X{i + 1}" for i in range(n_assets)]
+    return pd.DataFrame(r / 100, index=idx, columns=cols), pd.DataFrame(np.sqrt(var) / 100, index=idx, columns=cols)

@@ -10,5 +10,7 @@
 
 ::: vine_risk.marginals
 
+::: vine_risk.garch
+
 ::: vine_risk.pipeline
 

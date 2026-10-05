@@ -66,7 +66,8 @@ class TextProgress:
 
 # ------------------------------------------------------------------ commands
 def cmd_run(a: argparse.Namespace) -> int:
-    cfg = with_rolling(load_config(a.config), window=a.window, refit_frequency=a.refit_frequency, n_jobs=a.n_jobs)
+    cfg = with_rolling(load_config(a.config), window=a.window, refit_frequency=a.refit_frequency, n_jobs=a.n_jobs,
+                       marginal=a.marginal, marginal_lookback=a.marginal_lookback)
     steps = [s.strip() for s in a.steps.split(",") if s.strip()]
     _, returns = load_prices_and_returns(cfg, refresh=a.refresh)
     if a.last:
@@ -87,7 +88,8 @@ def cmd_run(a: argparse.Namespace) -> int:
 def cmd_update(a: argparse.Namespace) -> int:
     from vine_risk.update import update_run
 
-    cfg = with_rolling(load_config(a.config), window=a.window, refit_frequency=a.refit_frequency)
+    cfg = with_rolling(load_config(a.config), window=a.window, refit_frequency=a.refit_frequency,
+                       marginal=a.marginal, marginal_lookback=a.marginal_lookback)
     overrides = {k: v for k, v in dict(alpha=a.alpha, enter_ratio=a.enter_ratio, exit_ratio=a.exit_ratio).items()
                  if v is not None}
     report = update_run(cfg, a.run_dir or default_run_dir(cfg), threads=a.threads, n_jobs=a.n_jobs,
@@ -146,7 +148,8 @@ def cmd_schedule(a: argparse.Namespace) -> int:
 def cmd_replay(a: argparse.Namespace) -> int:
     from vine_risk.replay import run_replay
 
-    cfg = with_rolling(load_config(a.config), window=a.window, refit_frequency=a.refit_frequency)
+    cfg = with_rolling(load_config(a.config), window=a.window, refit_frequency=a.refit_frequency,
+                       marginal=a.marginal, marginal_lookback=a.marginal_lookback)
     run_replay(cfg, a.run_dir or default_run_dir(cfg), days=a.days, start=a.start, end=a.end, delay=a.delay,
                scan_step=a.scan_step, n_perm=a.n_perm, risk_every=a.risk_every, threads=a.threads,
                verify=not a.no_verify, out_dir=a.out)
@@ -243,6 +246,8 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--last", type=int, help="use only the last N return observations (quick test)")
     r.add_argument("--window", type=int, help="override rolling.window")
     r.add_argument("--refit-frequency", type=int, help="override rolling.refit_frequency")
+    r.add_argument("--marginal", choices=["empirical", "garch_t", "garch_empirical"], help="override rolling.marginal")
+    r.add_argument("--marginal-lookback", type=int, help="override rolling.marginal_lookback")
     r.add_argument("--n-jobs", type=int, help="worker processes (default from the config)")
     r.add_argument("--scan-step", type=int, default=5, help="permutation test every N observations")
     r.add_argument("--n-perm", type=int, default=499, help="permutations per test")
@@ -256,6 +261,8 @@ def build_parser() -> argparse.ArgumentParser:
     u.add_argument("--force", action="store_true", help="skip the safety checks on settings and data (not recommended)")
     u.add_argument("--window", type=int, help="override rolling.window (must match the run)")
     u.add_argument("--refit-frequency", type=int, help="override rolling.refit_frequency (must match the run)")
+    u.add_argument("--marginal", choices=["empirical", "garch_t", "garch_empirical"], help="override rolling.marginal (must match the run)")
+    u.add_argument("--marginal-lookback", type=int, help="override rolling.marginal_lookback (must match the run)")
     u.add_argument("--threads", type=int, default=4, help="threads of the vine fitter")
     u.add_argument("--n-jobs", type=int, help="worker processes for the table updates")
     u.add_argument("--scan-step", type=int, default=5)
@@ -274,6 +281,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     pl = add("replay", cmd_replay, "simulated live monitoring: replay recent history day by day")
     pl.add_argument("--run-dir", help="results folder to resume from")
+    pl.add_argument("--marginal", choices=["empirical", "garch_t", "garch_empirical"], help="override rolling.marginal (must match the run)")
+    pl.add_argument("--marginal-lookback", type=int, help="override rolling.marginal_lookback (must match the run)")
     pl.add_argument("--window", type=int, help="override rolling.window (must match the run)")
     pl.add_argument("--refit-frequency", type=int, help="override rolling.refit_frequency (must match the run)")
     pl.add_argument("--days", type=int, default=120, help="replay the last N observations")

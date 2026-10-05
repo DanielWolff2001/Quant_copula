@@ -33,12 +33,13 @@ Runs four steps in order, each reading what the previous one wrote into the **ru
 | `risk` | rolling VaR and Expected Shortfall, VaR backtest | `portfolio_risk.parquet`, `var_backtest.csv` |
 
 Useful options: `--last 700` uses only the last 700 days (a quick test); `--steps rolling,metrics` runs a subset;
-`--refresh` downloads the prices again instead of using the local copy; `--window` and `--refit-frequency` override the config.
+`--refresh` downloads the prices again instead of using the local copy; `--window`, `--refit-frequency`, `--marginal` and
+`--marginal-lookback` override the config (for example `--marginal garch_t --run-dir data/results/w250_garch` for a GARCH-filtered run).
 
 **Every step is incremental.** Running the same command again, or after new prices arrived, only does the new work: new fits, new
 scan dates, new risk dates. Extending a run gives exactly the same result as running everything at once (this is tested).
 
-**Overrides must be repeated.** Settings you change on the command line (`--window`, `--refit-frequency`) belong to the run. `update`
+**Overrides must be repeated.** Settings you change on the command line (`--window`, `--refit-frequency`, `--marginal`, `--marginal-lookback`) belong to the run. `update`
 and `replay` accept the same options and must be given the same values; otherwise the safety check below stops them. Putting the
 values in the config file avoids the problem.
 

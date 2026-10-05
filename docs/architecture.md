@@ -23,7 +23,8 @@ Quant_copula/
 │   ├── sources.py         Where prices come from: Yahoo Finance or your own CSV files.
 │   ├── data.py            Price download (cached), cleaning, sanity checks on new prices.
 │   ├── returns.py         Prices -> log returns -> model-ready return matrix.
-│   ├── marginals.py       Turns returns into uniform numbers in (0,1) via ranks.
+│   ├── marginals.py       Turns returns into uniform numbers in (0,1) via ranks; MarginalSpec picks the model.
+│   ├── garch.py           GARCH(1,1)-filtered marginals (volatility removed before the copula).
 │   ├── copula.py          VineCopula: fits a vine and summarises it.
 │   ├── dependence.py      Pairwise tau/Spearman/Pearson and the monitoring metrics.
 │   ├── rolling.py         RollingVineModel: the rolling-window machinery, checkpoints.

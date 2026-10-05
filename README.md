@@ -41,8 +41,8 @@ adjusted prices -> log returns -> rank transform (uniform marginals) -> vine cop
      -> slide the window, refit -> dependence metrics, change detection, portfolio risk
 ```
 
-* **Returns, not prices.** Log returns of adjusted prices; marginals are turned into uniforms by ranks, behind an interface that
-  would admit Student-t or GARCH marginals later.
+* **Returns, not prices.** Log returns of adjusted prices; marginals are turned into uniforms by ranks (default) or by a
+  GARCH(1,1) filter that removes volatility clustering first (`rolling.marginal: garch_t`), behind one interface.
 * **Vine copulas** from [pyvinecopulib](https://vinecopulib.github.io/pyvinecopulib/): the structure and a family for every
   pair-copula are chosen by BIC; the first three trees are fitted (a setting).
 * **Three levels, kept apart:** dependence (Kendall's tau, tail dependence), vine structure (families, edges), and
